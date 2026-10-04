@@ -239,6 +239,8 @@ docs/     design notes
 
 ## 5. Roadmap
 
+The long-term plan, from here to Steam Early Access, is in **[docs/ROADMAP.md](docs/ROADMAP.md)**. The milestones below are the prototype that's already built.
+
 Each milestone ends with something you can play and test over a simulated bad network.
 
 1. ✅ **M0: Netcode foundation**
