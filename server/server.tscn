@@ -14,7 +14,7 @@ script = ExtResource("2_transport")
 
 [node name="Arena" parent="World" instance=ExtResource("3_arena")]
 
-[node name="Players" type="Node3D" parent="World"]
+[node name="Entities" type="Node3D" parent="World"]
 
 [node name="OverviewCamera" type="Camera3D" parent="World"]
 transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 28, 28)

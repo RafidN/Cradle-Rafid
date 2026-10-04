@@ -1,0 +1,18 @@
+[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://shared/data/attack_data.gd" id="1_attack"]
+
+[resource]
+script = ExtResource("1_attack")
+display_name = "Heavy"
+startup = 15
+active = 4
+recovery = 20
+damage = 22
+hitstun = 22
+knockback = 7.0
+lunge_speed = 3.0
+hitbox_size = Vector3(2.2, 1.6, 1.8)
+hitbox_offset = Vector3(0, 0.9, -1.1)
+guard_break = true
+combo_next = -1

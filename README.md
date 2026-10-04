@@ -84,6 +84,27 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 
 ---
 
+### Combat implementation (M1)
+- **Attacks** are `AttackData` resources in `shared/data/attacks/`, timed in ticks at 30 Hz:
+
+  | Attack | Startup / active / recovery | Damage | Notes |
+  |---|---|---|---|
+  | Light 1 → 2 → 3 | 6/3/10 → 5/3/10 → 8/4/16 | 8 → 9 → 14 | Pressing light again during recovery chains to the next hit, and the chain is a true combo. Light 3 is a thrust with big knockback. |
+  | Heavy | 15/4/20 | 22 | Breaks guard. Can end a light chain. |
+
+- **Buffering:** a pressed action waits up to 8 ticks for the fighter to be free. Dodge can cancel an attack's recovery.
+- **Dodge:** 10 ticks long and invulnerable on ticks 1–6, with a 6-tick cooldown. With no direction held you dodge backwards.
+- **Block:** cuts damage to 20% and slows movement. It only covers attacks from the front.
+  - **Parry:** the first 5 ticks of a block parry the attack. The attacker is staggered for 1 s and you take no damage.
+  - **Guard break:** a heavy against a block deals 50% damage and staggers the blocker.
+- **Death:** at 0 HP you're down for 3 s, then respawn at full health.
+- **Who decides what:**
+  - Your own attacks, dodges and blocks are predicted on your client, so they start instantly.
+  - Hits, damage, stuns, parries and deaths come only from the server. Your client gets them through the correction it receives.
+- **Lag compensation:** each input carries the server tick the client was looking at. The server rewinds targets to that tick before testing the hitbox, up to 12 ticks (400 ms) back.
+  - A dodge counts if it was active on either the rewound frame or the server's current frame, which favors the defender.
+- **Lock-on:** while locked, the camera tracks the target, the fighter strafes facing it, and attacks aim at it. Lock-on breaks beyond 26 m or when the target dies.
+
 ## 3. Project layout
 
 ```
@@ -112,7 +133,7 @@ docs/     design notes
 | Light / Heavy attack | LMB / RMB | X / Y |
 | Dodge / Jump | Shift / Space | B / A |
 | Block | Q | RB |
-| Lock-on | Tab / MMB | R3 |
+| Lock-on (toggle) | Tab / MMB | R3 |
 | Techniques 1–4 | 1–4 | D-pad |
 | Cycle (hold) | C | LB |
 | Interact / Pause | E / Esc | — / Start |
@@ -129,7 +150,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
    - Players send inputs. The server moves them with authority. The client predicts its own movement and reconciles with the server. Other players are interpolated.
    - Lag simulator.
    - *Done when:* 2+ clients move smoothly at 150 ms latency with 5% packet loss.
-2. **M1: Combat core**
+2. ✅ **M1: Combat core**
    - Attacks defined in data, hitboxes and hurtboxes, lag-compensated hits.
    - Health, dodge invulnerability, block and parry, death and respawn, lock-on.
 3. **M2: Madra and cycling**
@@ -161,11 +182,22 @@ Each milestone ends with something you can play and test over a simulated bad ne
 | `--latency=150 --jitter=20 --loss=5` | Simulated network on that client: extra RTT in ms, jitter in ms, packet loss in % |
 | `--bot` | A client that moves on its own and prints stats every 5 s. Works headless, so it's useful for load tests. |
 
+| `--log-hits` (server) | Print every hit: who hit whom, the outcome, and how far it rewound |
+| `--screenshot=out.png [--screenshot-after=5]` | Save one frame after N seconds and quit, so visuals can be checked without watching the window |
+
 **Local test** (a headless server plus 2 windowed clients at +150 ms RTT, 5% loss, 20 ms jitter):
 
 ```bash
 tools/run_local.sh 2 150 5 20
 ```
+
+**Tests** (combat rules, iframes, combos, input encoding, and checking that rewind + replay matches straight simulation):
+
+```bash
+/Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/test_combat.gd
+```
+
+**Solo combat practice:** the server spawns a *Training Dummy* and a *Guarding Dummy* (which always blocks). Run a server plus one client, or add `--bot` clients to get sparring partners.
 
 **From the editor:** open *Debug → Customize Run Instances*, enable 3 instances, and give the first one `--server`. Run the others with no arguments (to get the menu) or with `--connect=127.0.0.1`.
 

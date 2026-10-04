@@ -1,8 +1,9 @@
 extends Node
 ## Entry point. Starts a dedicated server, a client, or shows the connect menu,
 ## depending on the build and the command-line arguments after "--":
-##   --server [--port=7777]
+##   --server [--port=7777] [--log-hits]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
+##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
 ## Headless runs and dedicated_server exports start a server unless --connect is given.
 
 const SERVER_SCENE := preload("res://server/server.tscn")
@@ -23,11 +24,13 @@ var _session: Node
 
 func _ready() -> void:
 	%ConnectButton.pressed.connect(_on_connect_pressed)
-	%ServerButton.pressed.connect(_start_server.bind(Protocol.DEFAULT_PORT))
+	%ServerButton.pressed.connect(_start_server.bind(Protocol.DEFAULT_PORT, false))
 	if _headless:
 		Engine.max_fps = HEADLESS_MAX_FPS
 
 	var args := _parse_args(OS.get_cmdline_user_args())
+	if args.has("screenshot"):
+		_screenshot_and_quit(String(args.screenshot), String(args.get("screenshot-after", "5")).to_float())
 	if args.has("connect"):
 		_start_client(
 			String(args.connect),
@@ -37,7 +40,7 @@ func _ready() -> void:
 			String(args.get("loss", "0")).to_float(),
 			args.has("bot"))
 	elif args.has("server") or _headless or OS.has_feature("dedicated_server"):
-		_start_server(String(args.get("port", str(Protocol.DEFAULT_PORT))).to_int())
+		_start_server(String(args.get("port", str(Protocol.DEFAULT_PORT))).to_int(), args.has("log-hits"))
 
 
 func _on_connect_pressed() -> void:
@@ -45,8 +48,9 @@ func _on_connect_pressed() -> void:
 		_latency_spin.value, _jitter_spin.value, _loss_spin.value, false)
 
 
-func _start_server(port: int) -> void:
+func _start_server(port: int, log_hits: bool) -> void:
 	var server: GameServer = SERVER_SCENE.instantiate()
+	server.log_hits = log_hits
 	add_child(server)
 	var err := server.start(port)
 	if err != OK:
@@ -99,6 +103,14 @@ func _fail(message: String) -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 	_status_label.text = message
 	_menu.show()
+
+
+func _screenshot_and_quit(path: String, delay: float) -> void:
+	await get_tree().create_timer(delay).timeout
+	await RenderingServer.frame_post_draw
+	var err := get_viewport().get_texture().get_image().save_png(path)
+	print("Screenshot %s: %s" % [path, error_string(err)])
+	get_tree().quit()
 
 
 ## Turns ["--a=1", "--b"] into {"a": "1", "b": true}.

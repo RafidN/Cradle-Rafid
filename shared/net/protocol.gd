@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 1
+const VERSION := 2
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -11,11 +11,11 @@ const TICK_RATE := 30
 const INPUT_REDUNDANCY := 6
 const MAX_NAME_LENGTH := 16
 
-enum Msg { HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, PLAYER_JOINED, PLAYER_LEFT }
+enum Msg { HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, PLAYER_JOINED, PLAYER_LEFT, HIT }
 
 
 static func is_reliable(msg: int) -> bool:
-	return msg != Msg.INPUT and msg != Msg.SNAPSHOT
+	return msg != Msg.INPUT and msg != Msg.SNAPSHOT and msg != Msg.HIT
 
 
 # --- Client -> server ---------------------------------------------------------------
@@ -88,16 +88,15 @@ static func decode_reject(buf: StreamPeerBuffer) -> String:
 	return reason if reason != null else "Rejected by server"
 
 
-## One snapshot per client per tick. The receiving client's own body is sent in full
-## (position, velocity, facing) for reconciliation, together with the tick of the last
-## input the server applied for it. Everyone else is sent as position + facing.
+## One snapshot per client per tick. The receiving client's own fighter is sent in full
+## (everything PlayerBody.capture_state() holds) for reconciliation, with the tick of the
+## last input the server applied for it. Everyone else is sent with just what's needed
+## to draw them.
 static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array) -> PackedByteArray:
 	var buf := _writer(Msg.SNAPSHOT)
 	buf.put_u32(tick)
 	buf.put_u32(ack_input_tick)
-	_put_vector3(buf, own.global_position)
-	_put_vector3(buf, own.velocity)
-	buf.put_float(own.facing)
+	_put_body_state(buf, own.capture_state())
 	buf.put_u16(bodies.size() - 1)
 	for body: PlayerBody in bodies:
 		if body == own:
@@ -105,6 +104,10 @@ static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bod
 		buf.put_u32(body.entity_id)
 		_put_vector3(buf, body.global_position)
 		buf.put_u16(quantize_angle(body.facing))
+		buf.put_u8(body.action)
+		buf.put_u8(body.action_id)
+		buf.put_u16(body.action_tick)
+		buf.put_u16(body.health)
 	return buf.data_array
 
 
@@ -112,9 +115,7 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 	var snapshot := {
 		"tick": buf.get_u32(),
 		"ack": buf.get_u32(),
-		"position": _get_vector3(buf),
-		"velocity": _get_vector3(buf),
-		"facing": buf.get_float(),
+		"state": _get_body_state(buf),
 		"others": [],
 	}
 	var count := buf.get_u16()
@@ -123,8 +124,32 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 			"id": buf.get_u32(),
 			"position": _get_vector3(buf),
 			"facing": dequantize_angle(buf.get_u16()),
+			"action": buf.get_u8(),
+			"action_id": buf.get_u8(),
+			"action_tick": buf.get_u16(),
+			"health": buf.get_u16(),
 		})
 	return snapshot
+
+
+static func encode_hit(attacker_id: int, target_id: int, result: Combat.Result, damage: int, at: Vector3) -> PackedByteArray:
+	var buf := _writer(Msg.HIT)
+	buf.put_u32(attacker_id)
+	buf.put_u32(target_id)
+	buf.put_u8(result)
+	buf.put_u16(damage)
+	_put_vector3(buf, at)
+	return buf.data_array
+
+
+static func decode_hit(buf: StreamPeerBuffer) -> Dictionary:
+	return {
+		"attacker": buf.get_u32(),
+		"target": buf.get_u32(),
+		"result": buf.get_u8(),
+		"damage": buf.get_u16(),
+		"position": _get_vector3(buf),
+	}
 
 
 static func encode_player_joined(entity_id: int, display_name: String) -> PackedByteArray:
@@ -166,6 +191,38 @@ static func _writer(msg: Msg) -> StreamPeerBuffer:
 	var buf := StreamPeerBuffer.new()
 	buf.put_u8(msg)
 	return buf
+
+
+static func _put_body_state(buf: StreamPeerBuffer, state: Dictionary) -> void:
+	_put_vector3(buf, state.position)
+	_put_vector3(buf, state.velocity)
+	buf.put_float(state.facing)
+	buf.put_float(state.dodge_yaw)
+	buf.put_u16(state.health)
+	buf.put_u8(state.action)
+	buf.put_u8(state.action_id)
+	buf.put_u16(state.action_tick)
+	buf.put_u16(state.action_length)
+	buf.put_u8(state.buffered)
+	buf.put_u8(state.buffer_ticks)
+	buf.put_u8(state.dodge_cooldown)
+
+
+static func _get_body_state(buf: StreamPeerBuffer) -> Dictionary:
+	return {
+		"position": _get_vector3(buf),
+		"velocity": _get_vector3(buf),
+		"facing": buf.get_float(),
+		"dodge_yaw": buf.get_float(),
+		"health": buf.get_u16(),
+		"action": buf.get_u8(),
+		"action_id": buf.get_u8(),
+		"action_tick": buf.get_u16(),
+		"action_length": buf.get_u16(),
+		"buffered": buf.get_u8(),
+		"buffer_ticks": buf.get_u8(),
+		"dodge_cooldown": buf.get_u8(),
+	}
 
 
 static func _put_vector3(buf: StreamPeerBuffer, v: Vector3) -> void:

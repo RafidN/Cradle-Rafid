@@ -10,9 +10,10 @@ script = ExtResource("1_remote")
 color = Color(0.85, 0.45, 0.38, 1)
 
 [node name="NameLabel" type="Label3D" parent="."]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.4, 0)
 pixel_size = 0.004
 billboard = 1
+no_depth_test = true
 text = "..."
-font_size = 48
-outline_size = 12
+font_size = 40
+outline_size = 10

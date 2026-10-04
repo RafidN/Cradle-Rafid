@@ -1,8 +1,11 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://client/net/game_client.gd" id="1_client"]
 [ext_resource type="Script" path="res://shared/net/net_transport.gd" id="2_transport"]
 [ext_resource type="PackedScene" path="res://shared/world/test_arena.tscn" id="3_arena"]
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp"]
+bg_color = Color(0.8, 0.22, 0.2, 1)
 
 [node name="GameClient" type="Node"]
 script = ExtResource("1_client")
@@ -32,9 +35,57 @@ anchor_top = 1.0
 anchor_bottom = 1.0
 offset_left = 12.0
 offset_top = -34.0
-offset_right = 700.0
+offset_right = 1200.0
 offset_bottom = -8.0
 grow_vertical = 0
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
-text = "WASD move  ·  Mouse look  ·  Space jump  ·  Esc release mouse"
+text = "WASD move  ·  LMB light  ·  RMB heavy  ·  Shift dodge  ·  Q block (tap to parry)  ·  Tab lock-on  ·  Space jump  ·  Esc release mouse"
+
+[node name="HealthBar" type="ProgressBar" parent="HUD"]
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -76.0
+offset_right = 312.0
+offset_bottom = -48.0
+grow_vertical = 0
+theme_override_styles/fill = SubResource("StyleBoxFlat_hp")
+max_value = 100.0
+value = 100.0
+
+[node name="TargetLabel" type="Label" parent="HUD"]
+visible = false
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -250.0
+offset_top = 12.0
+offset_right = 250.0
+offset_bottom = 40.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(1, 0.82, 0.3, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 4
+horizontal_alignment = 1
+
+[node name="DeathLabel" type="Label" parent="HUD"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -300.0
+offset_top = -30.0
+offset_right = 300.0
+offset_bottom = 30.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.9, 0.3, 0.25, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 32
+text = "Defeated — respawning..."
+horizontal_alignment = 1
