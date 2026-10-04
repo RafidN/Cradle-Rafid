@@ -54,7 +54,7 @@ func _build_technique_bar(loadout: PackedInt32Array) -> void:
 		if technique == null:
 			continue
 		var label := Label.new()
-		label.set_meta("text", "[%s] %s  %d" % [TECHNIQUE_KEYS[slot], technique.display_name, technique.cost])
+		label.set_meta("text", "[%s] %s  %d" % [TECHNIQUE_KEYS[slot], tr(technique.display_name), technique.cost])
 		label.set_meta("technique", loadout[slot])
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
 		label.add_theme_constant_override("outline_size", 4)
@@ -73,12 +73,12 @@ func show_fighter(body: PlayerBody) -> void:
 
 	var status := PackedStringArray()
 	if body.is_exhausted():
-		status.append("EXHAUSTED")
+		status.append(tr("EXHAUSTED"))
 	if body.enforcer_active:
-		status.append("Flame Body")
+		status.append(tr("Flame Body"))
 	if body.action == PlayerBody.Action.MEDITATE:
 		var per_second := PlayerBody.MEDITATION_REGEN * (1 + body.flow) * Protocol.TICK_RATE / float(PlayerBody.SPIRIT_SCALE)
-		status.append("Meditating  —  flow %d  (+%.1f spirit/s)" % [body.flow, per_second])
+		status.append(tr("Meditating  —  flow %d  (+%.1f spirit/s)") % [body.flow, per_second])
 	_status_label.text = "   ".join(status)
 
 	if body.loadout != _shown_loadout:
@@ -88,7 +88,7 @@ func show_fighter(body: PlayerBody) -> void:
 		var color := SLOT_READY
 		var locked := slot >= body.technique_slots
 		_slots[slot].text = _slots[slot].get_meta("text") + (
-			"  (%s)" % Advancement.rank_name(Advancement.slot_unlock_rank(slot)) if locked else "")
+			tr("  (%s)") % tr(Advancement.rank_name(Advancement.slot_unlock_rank(slot))) if locked else "")
 		if locked:
 			color = SLOT_UNAVAILABLE
 		elif technique.kind == TechniqueData.Kind.ENFORCER and body.enforcer_active:
@@ -136,11 +136,11 @@ func _show_meditation(body: PlayerBody) -> void:
 	_meditation_meter.show_breath(body.action_tick + Engine.get_physics_interpolation_fraction(), body.flow)
 	if body.breath_beat != _last_breath_beat:
 		if body.flow > _last_flow:
-			_feedback("Good breath", Color(0.5, 1.0, 0.7))
+			_feedback(tr("Good breath"), Color(0.5, 1.0, 0.7))
 		elif body.flow == 0 and _last_flow > 0:
-			_feedback("Breath broken", Color(1.0, 0.5, 0.4))
+			_feedback(tr("Breath broken"), Color(1.0, 0.5, 0.4))
 		elif body.flow < _last_flow:
-			_feedback("Missed", Color(1.0, 0.8, 0.4))
+			_feedback(tr("Missed"), Color(1.0, 0.8, 0.4))
 	_last_flow = body.flow
 	_last_breath_beat = body.breath_beat
 

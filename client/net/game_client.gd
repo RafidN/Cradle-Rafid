@@ -96,8 +96,8 @@ func connect_to_server(host: String, port: int, display_name: String, conditione
 		return err
 	multiplayer.multiplayer_peer = peer
 	multiplayer.connected_to_server.connect(_on_connected)
-	multiplayer.connection_failed.connect(_close.bind("Could not reach %s:%d" % [host, port]))
-	multiplayer.server_disconnected.connect(_close.bind("Disconnected from server"))
+	multiplayer.connection_failed.connect(_close.bind(tr("Could not reach %s:%d") % [host, port]))
+	multiplayer.server_disconnected.connect(_close.bind(tr("Disconnected from server")))
 	_transport.packet_received.connect(_on_packet)
 	_hud.debug_label.text = "Connecting to %s:%d..." % [host, port]
 	_hud.hint_label.visible = not bot
@@ -184,7 +184,7 @@ func _on_packet(_peer_id: int, bytes: PackedByteArray) -> void:
 		if bot:
 			print("[client %s] %s, essence %s" % [_display_name, Advancement.rank_name(_progress.rank), _progress.essence])
 	elif msg == Protocol.Msg.NOTICE:
-		var text := Protocol.decode_notice(buf)
+		var text := Text.render(Protocol.decode_notice(buf))
 		_hud.notify(text)
 		if bot:
 			print("[client %s] %s" % [_display_name, text])
@@ -236,14 +236,14 @@ func _load_zone(zone_id: String) -> void:
 		ring.position = portal.position + Vector3.UP * (portal.radius + 0.1)
 		_world.add_child(ring)
 		var label := Label3D.new()
-		label.text = "To %s" % Zones.display_name(portal.to_zone)
+		label.text = tr("To %s") % tr(Zones.display_name(portal.to_zone))
 		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 		label.font_size = 48
 		label.outline_size = 10
 		label.pixel_size = 0.01
 		label.position = portal.position + Vector3.UP * (portal.radius * 2.0 + 0.8)
 		_world.add_child(label)
-	_hud.notify(zone.display_name)
+	_hud.notify(tr(zone.display_name))
 
 
 func _on_snapshot(snapshot: Dictionary) -> void:
@@ -284,7 +284,7 @@ func _on_hit(hit: Dictionary) -> void:
 		_hits_landed += 1
 	if hit.result == Combat.Result.PARRIED:
 		tint = Color(0.4, 0.9, 1.0)
-	var text: String = RESULT_TEXT.get(hit.result, "%d")
+	var text: String = tr(RESULT_TEXT.get(hit.result, "%d"))
 	FloatingText.spawn(_world, hit.position, text % hit.damage if text.contains("%d") else text, tint)
 
 

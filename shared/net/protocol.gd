@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 7
+const VERSION := 8
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -309,16 +309,36 @@ static func encode_progress(progress: ProgressState) -> PackedByteArray:
 	return buf.data_array
 
 
-## A message for the player's screen ("Claimed an echo", "Advanced to Bronze").
-static func encode_notice(text: String) -> PackedByteArray:
+## A message for the player's screen ("Claimed an echo", "Advanced to Bronze"), as a Text
+## message ([key, args]) so the client shows it in the player's language. Args are
+## strings or ints.
+static func encode_notice(msg: Array) -> PackedByteArray:
 	var buf := _writer(Msg.NOTICE)
-	_put_string(buf, text)
+	_put_string(buf, msg[0])
+	buf.put_u8(msg[1].size())
+	for arg in msg[1]:
+		if arg is int:
+			buf.put_u8(1)
+			buf.put_32(arg)
+		else:
+			buf.put_u8(0)
+			_put_string(buf, str(arg))
 	return buf.data_array
 
 
-static func decode_notice(buf: StreamPeerBuffer) -> String:
-	var text = _get_string(buf, 512)
-	return text if text != null else ""
+## Returns a Text message, or [] if malformed.
+static func decode_notice(buf: StreamPeerBuffer) -> Array:
+	var key = _get_string(buf, 512)
+	if key == null or buf.get_available_bytes() < 1:
+		return []
+	var args := []
+	for i in buf.get_u8():
+		if buf.get_u8() == 1:
+			args.append(buf.get_32())
+		else:
+			var arg = _get_string(buf, 512)
+			args.append(arg if arg != null else "")
+	return Text.message(key, args)
 
 
 # --- Helpers ------------------------------------------------------------------------

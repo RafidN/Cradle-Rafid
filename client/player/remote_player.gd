@@ -48,15 +48,15 @@ func configure(info: Dictionary) -> void:
 	_shown_health = -1
 	var tint := PRACTITIONER_COLOR
 	var size := 1.0
-	_label_text = "%s  ·  %s" % [display_name, Advancement.rank_name(info.rank)]
+	_label_text = "%s  ·  %s" % [display_name, tr(Advancement.rank_name(info.rank))]
 	if kind == Protocol.EntityKind.BEAST:
 		var beast := Beasts.get_beast(info.species)
 		tint = beast.color
 		size = beast.scale
-		_label_text = "%s  (%s)" % [display_name, beast.rank_label]
+		_label_text = "%s  (%s)" % [tr(display_name), tr(beast.rank_label)]
 	elif kind == Protocol.EntityKind.DUMMY:
 		tint = DUMMY_COLOR
-		_label_text = display_name
+		_label_text = tr(display_name)
 	_model.set_color(tint)
 	_model.scale = Vector3.ONE * size
 	_name_label.position.y = 2.4 * size

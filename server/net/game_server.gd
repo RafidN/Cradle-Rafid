@@ -286,8 +286,8 @@ func _update_echoes() -> void:
 		session.progress.add_essence(echo.aspect, echo.essence)
 		session.progress_dirty = true
 		_send_progress(session)
-		_notify(session, "Claimed the echo of %s: +%d %s essence" % [
-			echo.source_name, echo.essence, Advancement.ASPECT_NAMES[echo.aspect].to_lower()])
+		_notify(session, "Claimed the echo of %s: +%d %s essence",
+			[echo.source_name, echo.essence, Advancement.ASPECT_NAMES[echo.aspect]])
 
 
 ## Every fighter is encoded once per tick; each player then gets the entries (and
@@ -450,17 +450,17 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 		Protocol.Request.CRAFT_SIGIL:
 			var error := progress.craft_error(request.argument)
 			if not error.is_empty():
-				_notify(session, error)
+				_notify_message(session, error)
 				return
 			progress.craft(request.argument)
 			session.progress_dirty = true
 			progress.apply_to(session.body)
 			_send_progress(session)
-			_notify(session, "Crafted: %s" % Advancement.sigil(request.argument).display_name)
+			_notify(session, "Crafted: %s", [Advancement.sigil(request.argument).display_name])
 		Protocol.Request.ADVANCE:
 			var error := progress.advance_error(session.body.action == PlayerBody.Action.MEDITATE)
 			if not error.is_empty():
-				_notify(session, error)
+				_notify_message(session, error)
 				return
 			progress.advance()
 			session.progress_dirty = true
@@ -471,10 +471,10 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 			_set_rank_info(session)
 			_broadcast(_encode_info(session.body.entity_id), true)
 			var rank_name := Advancement.rank_name(progress.rank)
-			_notify(session, "Breakthrough! You have advanced to %s" % rank_name)
+			_notify(session, "Breakthrough! You have advanced to %s", [rank_name])
 			for other: ClientSession in _sessions.values():
 				if other != session:
-					_notify(other, "%s has advanced to %s" % [session.display_name, rank_name])
+					_notify(other, "%s has advanced to %s", [session.display_name, rank_name])
 			print("[server] %s advanced to %s" % [session.display_name, rank_name])
 
 
@@ -546,8 +546,7 @@ func shutdown(reason := "") -> void:
 		return
 	_shutting_down = true
 	print("[server] Shutting down%s; saving %d players" % [": " + reason if reason else "", _sessions.size()])
-	_broadcast(Protocol.encode_notice("The server is shutting down%s. Your progress is saved." % (
-		" (%s)" % reason if reason else "")), true)
+	_broadcast(Protocol.encode_notice(Text.message("The server is shutting down. Your progress is saved.")), true)
 	get_tree().create_timer(SHUTDOWN_TIMEOUT_SECONDS).timeout.connect(func():
 		push_warning("[server] Saving took too long; quitting anyway")
 		get_tree().quit())
@@ -587,7 +586,7 @@ func _check_portals() -> void:
 func _transfer(session: ClientSession, portal: ZonePortal) -> void:
 	session.transferring = true
 	var destination := Zones.display_name(portal.to_zone)
-	_notify(session, "Traveling to %s..." % destination)
+	_notify(session, "Traveling to %s...", [destination])
 	var result := await backend.request_json(HTTPClient.METHOD_POST,
 		"/internal/characters/%d/transfer" % session.character_id,
 		{"zone": portal.to_zone, "spawn": portal.to_spawn, "progress": session.progress.to_dict()})
@@ -595,7 +594,7 @@ func _transfer(session: ClientSession, portal: ZonePortal) -> void:
 		return  # They left while we were asking.
 	if not result.ok:
 		session.transferring = false
-		_notify(session, "The way to %s is closed: %s" % [destination, result.error])
+		_notify(session, "The way to %s is closed: %s", [destination, result.error])
 		# Step them back out of the portal so it doesn't fire again immediately.
 		session.body.global_position = Zones.spawn_point(zone_id, session.arrived_at)
 		return
@@ -676,8 +675,13 @@ func _send_progress(session: ClientSession) -> void:
 	_transport.send(session.peer_id, Protocol.encode_progress(session.progress), true)
 
 
-func _notify(session: ClientSession, text: String) -> void:
-	_transport.send(session.peer_id, Protocol.encode_notice(text), true)
+## Sends a notice: key is an English format string (see Text), args fill it in.
+func _notify(session: ClientSession, key: String, args := []) -> void:
+	_notify_message(session, Text.message(key, args))
+
+
+func _notify_message(session: ClientSession, msg: Array) -> void:
+	_transport.send(session.peer_id, Protocol.encode_notice(msg), true)
 
 
 # --- Fighters -----------------------------------------------------------------------

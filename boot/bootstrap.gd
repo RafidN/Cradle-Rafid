@@ -85,7 +85,7 @@ func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	var err := server.start(port)
 	if err != OK:
 		server.queue_free()
-		_fail("Could not start server on port %d: %s" % [port, error_string(err)])
+		_fail(tr("Could not start server on port %d: %s") % [port, error_string(err)])
 		return
 	_session = server
 	_menu.hide()
@@ -123,7 +123,7 @@ func _start_client(address: String, display_name: String, latency_ms: float,
 		conditioner if conditioner.is_active() else null, ticket)
 	if err != OK:
 		client.queue_free()
-		_fail("Could not connect: %s" % error_string(err))
+		_fail(tr("Could not connect: %s") % error_string(err))
 		return
 	_session = client
 	_menu.hide()

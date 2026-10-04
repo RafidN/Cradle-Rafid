@@ -1,0 +1,423 @@
+msgid ""
+msgstr ""
+"Content-Type: text/plain; charset=UTF-8\n"
+
+#: client/ui/combat_hud.gd:91
+msgid "  (%s)"
+msgstr ""
+
+#: client/ui/progression_panel.gd:81
+msgid " and a %s"
+msgstr ""
+
+#: client/ui/progression_panel.gd:78
+msgid "%d essence (you have %d)"
+msgstr ""
+
+#: client/ui/progression_panel.gd:72
+msgid "%s  —  %d HP, %d spirit, %d techniques"
+msgstr ""
+
+#: client/ui/progression_panel.gd:98
+msgid "%s (%d/%d)\n%s\nCost: %s"
+msgstr ""
+
+#: client/ui/progression_panel.gd:88
+msgid "%s essence: %d"
+msgstr ""
+
+#: server/net/game_server.gd:477
+msgid "%s has advanced to %s"
+msgstr ""
+
+#: boot/account_panel.gd:170
+msgid "%s: %s (+%d talent points in its branch, permanently)"
+msgstr ""
+
+#: boot/bootstrap.tscn:92
+msgid "Added RTT (ms)"
+msgstr ""
+
+#: client/ui/progression_panel.gd:29
+msgid "Advancement"
+msgstr ""
+
+#: boot/account_panel.gd:49
+msgid "Backend URL"
+msgstr ""
+
+#: client/ui/progression_panel.gd:106
+msgid "Break through to %s"
+msgstr ""
+
+#: server/net/game_server.gd:474
+msgid "Breakthrough! You have advanced to %s"
+msgstr ""
+
+#: client/ui/combat_hud.gd:141
+msgid "Breath broken"
+msgstr ""
+
+#: shared/data/ranks/bronze.tres:7
+msgid "Bronze"
+msgstr ""
+
+#: shared/data/disciplines.gd:16
+msgid "Builder"
+msgstr ""
+
+#: boot/bootstrap.tscn:61
+msgid "CRADLE"
+msgstr ""
+
+#: shared/data/techniques/cinder_trap.tres:7
+msgid "Cinder Trap"
+msgstr ""
+
+#: server/net/game_server.gd:289
+msgid "Claimed the echo of %s: +%d %s essence"
+msgstr ""
+
+#: shared/data/disciplines.gd:15
+msgid "Commands the space around them. Crowd control and support."
+msgstr ""
+
+#: boot/bootstrap.tscn:124
+msgid "Connect"
+msgstr ""
+
+#: shared/data/disciplines.gd:14
+msgid "Controller"
+msgstr ""
+
+#: boot/bootstrap.gd:126
+msgid "Could not connect: %s"
+msgstr ""
+
+#: client/net/game_client.gd:99
+msgid "Could not reach %s:%d"
+msgstr ""
+
+#: boot/bootstrap.gd:88
+msgid "Could not start server on port %d: %s"
+msgstr ""
+
+#: client/ui/progression_panel.gd:51
+msgid "Craft"
+msgstr ""
+
+#: server/net/game_server.gd:459
+msgid "Crafted: %s"
+msgstr ""
+
+#: boot/account_panel.gd:74
+msgid "Create"
+msgstr ""
+
+#: boot/account_panel.gd:164
+msgid "Create your first character"
+msgstr ""
+
+#: boot/account_panel.gd:192
+msgid "Created %s"
+msgstr ""
+
+#: boot/account_panel.gd:182
+msgid "Creating..."
+msgstr ""
+
+#: client/client.tscn:172
+msgid "Defeated — respawning..."
+msgstr ""
+
+#: boot/bootstrap.tscn:66
+msgid "Direct connect (offline dev)"
+msgstr ""
+
+#: client/net/game_client.gd:100
+msgid "Disconnected from server"
+msgstr ""
+
+#: client/ui/combat_hud.gd:76
+msgid "EXHAUSTED"
+msgstr ""
+
+#: shared/data/advancement.gd:11
+msgid "Earth"
+msgstr ""
+
+#: shared/data/sigils/tempered_body.tres:8
+msgid "Earth and fire essence forged into a body sigil. Required to advance to Silver."
+msgstr ""
+
+#: shared/data/beasts/ember_hound.tres:7
+msgid "Ember Hound"
+msgstr ""
+
+#: shared/data/techniques/ember_lance.tres:7
+msgid "Ember Lance"
+msgstr ""
+
+#: shared/data/zones/ember_wilds.tres:86
+msgid "Ember Wilds"
+msgstr ""
+
+#: shared/data/disciplines.gd:11
+msgid "Empowers the body. Frontline fighter who holds attention."
+msgstr ""
+
+#: shared/data/disciplines.gd:10
+msgid "Enforcer"
+msgstr ""
+
+#: boot/account_panel.gd:83
+msgid "Enter the world"
+msgstr ""
+
+#: shared/data/advancement.gd:11
+msgid "Fire"
+msgstr ""
+
+#: shared/data/sigils/kindled_core.tres:8
+msgid "Fire essence bound into the core: +15 spirit capacity."
+msgstr ""
+
+#: client/ui/combat_hud.gd:78 shared/data/techniques/flame_body.tres:7
+msgid "Flame Body"
+msgstr ""
+
+#: shared/data/disciplines.gd:17
+msgid "Forges constructs. Shields, traps and healing wards."
+msgstr ""
+
+#: shared/data/beasts/gale_fox.tres:7
+msgid "Gale Fox"
+msgstr ""
+
+#: client/ui/combat_hud.gd:139
+msgid "Good breath"
+msgstr ""
+
+#: shared/data/zones/proving_grounds.tres:34
+msgid "Guarding Dummy"
+msgstr ""
+
+#: shared/data/attacks/heavy.tres:7
+msgid "Heavy"
+msgstr ""
+
+#: client/client.tscn:208
+msgid "Hold E to claim the echo"
+msgstr ""
+
+#: shared/data/ranks/iron.tres:7
+msgid "Iron"
+msgstr ""
+
+#: boot/bootstrap.tscn:103
+msgid "Jitter (ms)"
+msgstr ""
+
+#: boot/account_panel.gd:206
+msgid "Joining %s..."
+msgstr ""
+
+#: boot/account_panel.gd:199
+msgid "Joining..."
+msgstr ""
+
+#: shared/data/sigils/kindled_core.tres:7
+msgid "Kindled Core Sigil"
+msgstr ""
+
+#: shared/data/disciplines.gd:12
+msgid "Lancer"
+msgstr ""
+
+#: shared/data/attacks/light_1.tres:7
+msgid "Light 1"
+msgstr ""
+
+#: shared/data/attacks/light_2.tres:7
+msgid "Light 2"
+msgstr ""
+
+#: shared/data/attacks/light_3.tres:7
+msgid "Light 3"
+msgstr ""
+
+#: boot/account_panel.gd:62
+msgid "Log in"
+msgstr ""
+
+#: boot/account_panel.gd:143
+msgid "Logged in as %s"
+msgstr ""
+
+#: boot/account_panel.gd:129
+msgid "Logging in..."
+msgstr ""
+
+#: client/ui/combat_hud.gd:81
+msgid "Meditating  —  flow %d  (+%.1f spirit/s)"
+msgstr ""
+
+#: client/ui/combat_hud.gd:143
+msgid "Missed"
+msgstr ""
+
+#: boot/bootstrap.tscn:72
+msgid "Name (optional)"
+msgstr ""
+
+#: shared/sim/progress_state.gd:59
+msgid "Need %d essence to reach %s"
+msgstr ""
+
+#: shared/sim/progress_state.gd:62
+msgid "Need a %s to reach %s"
+msgstr ""
+
+#: boot/account_panel.gd:71
+msgid "New character name"
+msgstr ""
+
+#: client/ui/progression_panel.gd:82
+msgid "Next: %s needs %s."
+msgstr ""
+
+#: shared/sim/progress_state.gd:56
+msgid "No higher rank yet"
+msgstr ""
+
+#: shared/sim/progress_state.gd:41
+msgid "Not enough %s essence"
+msgstr ""
+
+#: client/ui/progression_panel.gd:65
+msgid "P to close"
+msgstr ""
+
+#: boot/bootstrap.tscn:114
+msgid "Packet loss (%)"
+msgstr ""
+
+#: boot/account_panel.gd:56
+msgid "Password (8+ characters)"
+msgstr ""
+
+#: boot/account_panel.gd:43
+msgid "Play Online"
+msgstr ""
+
+#: server/net/game_server.gd:581
+msgid "Portals only work on an online server"
+msgstr ""
+
+#: shared/data/disciplines.gd:13
+msgid "Projects spirit as strikes. Damage from range."
+msgstr ""
+
+#: shared/data/zones/proving_grounds.tres:46
+msgid "Proving Grounds"
+msgstr ""
+
+#: boot/account_panel.gd:63
+msgid "Register"
+msgstr ""
+
+#: boot/account_panel.gd:129
+msgid "Registering..."
+msgstr ""
+
+#: server/server.tscn:28
+msgid "SERVER  |  starting..."
+msgstr ""
+
+#: shared/data/techniques/searing_ring.tres:7
+msgid "Searing Ring"
+msgstr ""
+
+#: client/ui/progression_panel.gd:41
+msgid "Sigils"
+msgstr ""
+
+#: shared/data/beasts/stoneback_boar.tres:9 shared/data/ranks/silver.tres:7
+msgid "Silver"
+msgstr ""
+
+#: boot/bootstrap.tscn:83
+msgid "Simulated network"
+msgstr ""
+
+#: shared/sim/progress_state.gd:64
+msgid "Sit and meditate (C) to break through"
+msgstr ""
+
+#: boot/bootstrap.tscn:129
+msgid "Start Server"
+msgstr ""
+
+#: shared/data/beasts/stoneback_boar.tres:7
+msgid "Stoneback Boar"
+msgstr ""
+
+#: shared/data/sigils/tempered_body.tres:7
+msgid "Tempered Body Sigil"
+msgstr ""
+
+#: server/net/game_server.gd:549
+msgid "The server is shutting down. Your progress is saved."
+msgstr ""
+
+#: server/net/game_server.gd:597
+msgid "The way to %s is closed: %s"
+msgstr ""
+
+#: client/net/game_client.gd:239
+msgid "To %s"
+msgstr ""
+
+#: server/net/game_server.gd:589
+msgid "Traveling to %s..."
+msgstr ""
+
+#: shared/sim/progress_state.gd:34
+msgid "Unknown sigil"
+msgstr ""
+
+#: boot/account_panel.gd:54
+msgid "Username"
+msgstr ""
+
+#: shared/data/ways/kindled_flame.tres:8
+msgid "Vaelor"
+msgstr ""
+
+#: client/client.tscn:52
+msgid "WASD move  ·  LMB light  ·  RMB heavy  ·  Shift dodge  ·  Q block  ·  1-4 techniques  ·  C meditate  ·  E claim  ·  P advancement  ·  Tab lock-on  ·  Esc mouse"
+msgstr ""
+
+#: shared/data/ways/kindled_flame.tres:7
+msgid "Way of Kindled Flame"
+msgstr ""
+
+#: shared/data/advancement.gd:11
+msgid "Wind"
+msgstr ""
+
+#: shared/sim/progress_state.gd:36
+msgid "You can't hold any more of: %s"
+msgstr ""
+
+#: client/ui/progression_panel.gd:84
+msgid "You stand at the peak of what this world allows. For now."
+msgstr ""
+
+#: shared/sim/progress_state.gd:38
+msgid "You've already advanced past needing: %s"
+msgstr ""
+
+#: boot/bootstrap.tscn:79
+msgid "host:port"
+msgstr ""

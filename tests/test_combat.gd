@@ -55,6 +55,7 @@ func _run() -> void:
 	_test_remote_entry_encoding()
 	_test_content_data()
 	_test_save_migration()
+	_test_notice_messages()
 
 	print("\n%s" % ("ALL TESTS PASSED" if _failures == 0 else "%d FAILURE(S)" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -445,7 +446,7 @@ func _test_progression_rules() -> void:
 		"advancing spends essence from the largest pools first (left %s)" % progress.essence)
 
 	progress.add_essence(Advancement.Aspect.EARTH, 200)
-	_check(progress.advance_error(true).contains("Tempered Body"), "Silver needs a Tempered Body Sigil")
+	_check(Text.render(progress.advance_error(true)).contains("Tempered Body"), "Silver needs a Tempered Body Sigil")
 	_check(not progress.craft_error(Advancement.Sigil.TEMPERED_BODY).is_empty(), "sigils need every aspect in their cost")
 	progress.add_essence(Advancement.Aspect.FIRE, 50)
 	progress.craft(Advancement.Sigil.TEMPERED_BODY)
@@ -712,6 +713,16 @@ func _test_content_data() -> void:
 				if Vector2(spawn.x - portal.position.x, spawn.z - portal.position.z).length() < portal.radius + 3.0:
 					problems.append("zone %s: a spawn point is inside a portal" % zone.id)
 	_check(problems.is_empty(), "content is consistent%s" % ("" if problems.is_empty() else " %s" % [problems]))
+
+
+func _test_notice_messages() -> void:
+	var msg := Text.message("Claimed the echo of %s: +%d %s essence", ["Ember Hound", 12, "Fire"])
+	var buf := Protocol.reader(Protocol.encode_notice(msg))
+	buf.get_u8()
+	var decoded := Protocol.decode_notice(buf)
+	_check(decoded == msg, "notices carry their message key and typed args over the wire")
+	_check(Text.render(decoded) == "Claimed the echo of Ember Hound: +12 Fire essence", "messages render to text")
+	_check(Text.render([]) == "", "an empty message renders as nothing")
 
 
 func _test_save_migration() -> void:

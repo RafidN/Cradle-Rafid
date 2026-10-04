@@ -27,19 +27,19 @@ func add_essence(aspect: int, amount: int) -> void:
 	essence[aspect] = mini(essence[aspect] + amount, 0xFFFF)
 
 
-## Why the sigil can't be crafted, or "" if it can.
-func craft_error(sigil: int) -> String:
+## Why the sigil can't be crafted, as a Text message, or [] if it can.
+func craft_error(sigil: int) -> Array:
 	var info := Advancement.sigil(sigil)
 	if info == null:
-		return "Unknown sigil"
+		return Text.message("Unknown sigil")
 	if sigils[sigil] >= info.max_count:
-		return "You can't hold more %ss" % info.display_name
+		return Text.message("You can't hold any more of: %s", [info.display_name])
 	if info.obsolete_at_rank >= 0 and rank >= info.obsolete_at_rank:
-		return "You've already advanced past needing a %s" % info.display_name
+		return Text.message("You've already advanced past needing: %s", [info.display_name])
 	for aspect in essence.size():
 		if essence[aspect] < info.cost[aspect]:
-			return "Not enough %s essence" % Advancement.ASPECT_NAMES[aspect].to_lower()
-	return ""
+			return Text.message("Not enough %s essence", [Advancement.ASPECT_NAMES[aspect]])
+	return []
 
 
 func craft(sigil: int) -> void:
@@ -49,19 +49,20 @@ func craft(sigil: int) -> void:
 	sigils[sigil] += 1
 
 
-## Why the practitioner can't advance, or "" if they can. Breakthroughs happen while meditating.
-func advance_error(meditating: bool) -> String:
+## Why the practitioner can't advance, as a Text message, or [] if they can.
+## Breakthroughs happen while meditating.
+func advance_error(meditating: bool) -> Array:
 	if rank + 1 >= Advancement.rank_count():
-		return "No higher rank yet"
+		return Text.message("No higher rank yet")
 	var next := Advancement.rank(rank + 1)
 	if total_essence() < next.essence_cost:
-		return "Need %d essence to reach %s" % [next.essence_cost, next.display_name]
+		return Text.message("Need %d essence to reach %s", [next.essence_cost, next.display_name])
 	var required := Advancement.sigils.net_id_of(next.required_sigil)
 	if required >= 0 and sigils[required] < 1:
-		return "Need a %s to reach %s" % [Advancement.sigil(required).display_name, next.display_name]
+		return Text.message("Need a %s to reach %s", [Advancement.sigil(required).display_name, next.display_name])
 	if not meditating:
-		return "Sit and meditate (C) to break through"
-	return ""
+		return Text.message("Sit and meditate (C) to break through")
+	return []
 
 
 ## Spends the essence (largest pools first) and sigil, and raises the rank.
