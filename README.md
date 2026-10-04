@@ -1,90 +1,154 @@
 # Cradle
 
-A 3D third-person platformer made in **Godot 4.7** (GDScript, Forward+, Jolt Physics).
+A 3D third-person **action MMO** inspired by Will Wight's *Cradle* series, built in **Godot 4.7**.
 
-You play a small spirit that wakes inside the Cradle, a hollow world tree. Climb through connected areas, collect **Seeds** that give you new movement abilities, and wake the dormant **Cradles** (checkpoints) as you go. The goal is to reach the crown of the tree. A run should take about 20–40 minutes.
+Cycle madra to deepen your core. Fight other sacred artists in real-time action combat. Claim the remnants they leave behind, and use them to advance through the ranks.
 
-## Core mechanics
+> **IP note:** *madra*, *sacred artist*, *remnant*, *Path* and the rank names come from the *Cradle* books. They are working names for a personal or fan project. Replace them with original terms before releasing anything publicly or commercially.
 
-- **Third-person movement.** Movement is relative to the camera, with acceleration and friction. The character model turns to face the direction it's moving.
-- **Jumping.** Jump height depends on how long you hold the button. There is 0.1 s of coyote time and a 0.1 s jump buffer. Falling uses stronger gravity than rising.
-- **Abilities unlocked by Seeds:**
-  - Double Jump (Seed 1)
-  - Dash (Seed 2): a horizontal burst that recharges when you touch the ground
-  - Wall Jump (Seed 3, optional)
-- **Hazards and checkpoints.** Thorns and pits send you back to the last Cradle you activated. There is no HP.
-- **Collectibles.** Optional Motes are hidden around the levels.
-- **Win condition.** Reach the Crown chamber.
+---
 
-## Controls
+## 1. Core loop
+
+```
+Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
+       ↑                                                          ↓
+       └──────── Advance (rank up, new techniques, Path growth) ←──┘
+```
+
+### Madra and cycling
+- Each character has a **core** with a **capacity**, and a **madra pool** that refills by cycling.
+- **Cycling** is a skill-based channel: hold `cycle`, then match a breathing or pulse rhythm.
+  - Hitting the window cleanly increases the regen multiplier. Missing it breaks the flow.
+  - You can't cycle while taking damage.
+  - Cycling at aura-rich sites (contested areas in the world) gives a bonus.
+- **Paths** decide which aspect your madra has (for example fire, wind, blood or force), and with it your techniques and passives.
+
+### Combat (action-based, server-authoritative)
+- **Light and heavy attacks** use combo strings. Each attack has startup, active and recovery frames defined in data.
+- **Dodge** has invulnerability frames. **Block** reduces damage but stops your madra regen. A **perfect block** (parry) staggers the attacker.
+- **Lock-on** targets one enemy and lets you switch between enemies.
+- **Techniques** cost madra and come in four types:
+  - **Enforcer:** buffs and enhanced strikes.
+  - **Striker:** projectiles.
+  - **Ruler:** area of effect and zone control.
+  - **Forger:** constructs such as shields and traps.
+- **Madra exhaustion:** emptying your pool leaves you briefly vulnerable. Managing that is the core tension in fights.
+- **PvP** is allowed only in contested zones and arenas. Towns and starter zones are safe.
+
+### Remnants and advancement
+- Defeated beasts and sacred artists leave a **remnant** that can be claimed for a short time.
+- Claiming a remnant gives **essence** that matches its aspect. Essence is used to:
+  - raise your core capacity
+  - craft **bindings**, which unlock or upgrade techniques
+  - pay for **advancement trials**
+- **Rank ladder** (working names): Foundation → Copper → Iron → Jade → Lowgold → Highgold → True Gold → Underlord.
+  - Each rank changes your stats a lot. Iron gives an Iron body, which raises physical stats.
+  - Each rank unlocks new technique slots.
+  - Fights between ranks are lopsided on purpose, as in the books. Matchmaking and zone level ranges keep this under control.
+
+---
+
+## 2. Architecture
+
+```
+            ┌──────────────┐  HTTPS (login, char list, shard list)
+  Client ───┤  Backend API ├──── Postgres (accounts, characters, inventory)
+ (Godot)    └──────┬───────┘
+    │              │ internal API (verify session token, load/save character)
+    │  ENet/UDP    │
+    └──────► Zone Server (headless Godot, about 100 players)  × N shards
+```
+
+- **One Godot codebase** produces two exports:
+  - The **client**.
+  - A **headless dedicated server**, built with the `dedicated_server` feature tag and the `--headless` flag.
+- Code that runs on both sides lives in `shared/`: simulation, combat rules, data definitions and packet formats. This keeps the client's prediction and the server's simulation consistent with each other.
+- **Backend** (`backend/`) is a small separate service: REST API plus Postgres.
+  - It handles accounts, sessions, saved characters and the list of available shards.
+  - Zone servers check each player's session token with the backend and save characters back to it.
+  - Godot ignores this folder.
+
+### Netcode design
+| Concern | Approach |
+|---|---|
+| Transport | ENet (UDP) via `ENetMultiplayerPeer`. Custom binary packets go through `send_bytes`, not `MultiplayerSynchronizer`, so bandwidth stays under our control. |
+| Authority | The server decides everything. Clients send only **inputs**, never positions or damage. |
+| Tick rate | 30 Hz simulation. Snapshots go out at 20 Hz. Physics interpolation smooths rendering. |
+| Local player | **Client-side prediction** with **server reconciliation**. The client keeps a buffer of its inputs and replays them after each correction. |
+| Remote entities | **Snapshot interpolation**, rendered about 100 ms in the past. |
+| Hit detection | **Lag compensation**: the server rewinds hurtboxes to the tick the attacker actually saw. Melee uses swept hitboxes over the active frames. |
+| Bandwidth | **Interest management** on a spatial grid, so each client only receives entities near it. **Delta compression** against the last snapshot the client acknowledged. Values are quantized. |
+| Cheating | Inputs are validated (rate, cooldowns, madra cost, distance). The client never sends anything that can change state on its own authority. |
+| Testing | A network condition simulator (latency, jitter, packet loss) and headless **bot clients** for load tests. |
+
+---
+
+## 3. Project layout
+
+```
+shared/   net/  (packet formats, serialization)  sim/  (movement, combat rules)  data/  (techniques, Paths, ranks)
+client/   net/  (connection, prediction, interpolation)  player/  ui/  fx/
+server/   net/  (sessions, snapshots, interest)  world/  (zones, spawns, remnants)  ai/
+assets/   models/ textures/ materials/ audio/ fonts/
+backend/  account and persistence service (not Godot)
+docs/     design notes
+```
+
+**Collision layers:**
+1. world
+2. player
+3. npc
+4. hitbox
+5. hurtbox
+6. pickup
+7. trigger
+
+## 4. Default controls
 
 | Action | Keyboard / Mouse | Gamepad |
 |---|---|---|
-| Move | WASD / Arrows | Left stick |
-| Camera | Mouse | Right stick |
-| Jump | Space | A / Cross |
-| Dash | Shift / Right mouse button | X / Square |
-| Interact | E | Y / Triangle |
-| Pause / release mouse | Esc | Start |
+| Move / Camera | WASD / Mouse | Left / Right stick |
+| Light / Heavy attack | LMB / RMB | X / Y |
+| Dodge / Jump | Shift / Space | B / A |
+| Block | Q | RB |
+| Lock-on | Tab / MMB | R3 |
+| Techniques 1–4 | 1–4 | D-pad |
+| Cycle (hold) | C | LB |
+| Interact / Pause | E / Esc | — / Start |
 
-Click inside the game window to capture the mouse again.
+---
 
-## Project structure
+## 5. Roadmap
 
-```
-scenes/     main/ player/ levels/ entities/ ui/
-scripts/    autoload/ player/ entities/ levels/ ui/
-assets/     models/ textures/ materials/ audio/{music,sfx}/ fonts/
-resources/  themes/ data/ environments/
-```
+Each milestone ends with something you can play and test over a simulated bad network.
 
-Naming conventions:
-- Files use snake_case.
-- Nodes and classes use PascalCase.
-- Signals are named in the past tense (`checkpoint_activated`).
-- A scene and its script share the same base name.
-
-### Collision layers
-1. world
-2. player
-3. hazard
-4. pickup
-5. trigger
-
-## Architecture
-
-**Autoloads**
-- `Events` (`scripts/autoload/events.gd`) is a global signal bus. Its signals are `player_died`, `checkpoint_activated`, `ability_unlocked`, `mote_collected`, `level_change_requested` and `game_completed`.
-- `GameState` (`scripts/autoload/game_state.gd`) holds the data for the current run: unlocked abilities, the current checkpoint, motes collected and play time. Use `has_ability()` to check an ability and `unlock()` to grant one.
-- `SaveManager` (`scripts/autoload/save_manager.gd`) saves and loads `GameState` as JSON at `user://save.json`.
-- Planned: `SceneManager` (fades and level swaps) and `AudioManager` (music and SFX buses).
-
-**Scenes**
-- `scenes/main/main.tscn` is the main scene. It contains:
-  - the WorldEnvironment (procedural sky, SSAO, glow, fog)
-  - a sun with shadows
-  - a greybox test area: ground, tree trunk, stepping platforms and a ledge with a Cradle marker
-  - the Player
-- `scenes/player/player.tscn` is a `CharacterBody3D` (`scripts/player/player.gd`) made of these parts:
-  - a capsule collider
-  - a `Model` node, which turns toward the movement direction
-  - `CameraPivot → SpringArm3D → Camera3D`, an orbit camera that avoids clipping through walls
-
-All movement, jump, dash and camera values are exported variables, so you can tune them in the Inspector.
-
-## Roadmap
-
-1. ✅ Project setup: display, input map, collision layers, folders and autoloads
-2. ✅ Basic third-person player controller and greybox test area
-3. Tune how movement and the camera feel. Add a blob shadow or landing indicator to help judge jumps.
-4. Hazards and Cradle checkpoints (`Area3D`), with respawn handled through `Events`
-5. Seed pickups. Test the double jump and dash in a gated room.
-6. A level template plus `SceneManager` room exits with fade transitions
-7. UI: main menu, HUD (motes and ability icons), pause and end screen
-8. Continue from a save file → vertical slice
-9. Art pass: character model and animation (AnimationTree), tree interior, materials
-10. Audio, polish (particles, squash and stretch, camera shake), options, and desktop and web exports
+1. **M0: Netcode foundation**
+   - Bootstrap that starts as either client or server.
+   - Connect and handshake.
+   - Players send inputs. The server moves them with authority. The client predicts its own movement and reconciles with the server. Other players are interpolated.
+   - Lag simulator.
+   - *Done when:* 2+ clients move smoothly at 150 ms latency with 5% packet loss.
+2. **M1: Combat core**
+   - Attacks defined in data, hitboxes and hurtboxes, lag-compensated hits.
+   - Health, dodge invulnerability, block and parry, death and respawn, lock-on.
+3. **M2: Madra and cycling**
+   - Madra pool, the cycling minigame, and exhaustion.
+   - The first Path with one technique of each type: Enforcer, Striker, Ruler, Forger.
+4. **M3: Remnants and advancement**
+   - AI sacred beasts that run on the server.
+   - Remnant drops and claiming, essence and bindings.
+   - Advancement from Foundation to Copper to Iron.
+5. **M4: Persistence**
+   - The backend service: accounts, characters and inventory.
+   - Token handoff to zone servers and autosave.
+6. **M5: Shards and zones**
+   - Multiple zone servers and a shard list.
+   - Moving players between zones.
+   - Interest management at full scale, and load tests with 100 bots.
+7. **M6: Content and polish**
+   - More Paths, zones, PvP arenas, UI, VFX and audio.
 
 ## Running
 
-Open the folder in Godot 4.7 and press F5. If you use Claude Code, run `/gd:run`.
+The project has no runnable scenes yet. M0 adds the bootstrap scene and the launch commands for running a server and several clients.
