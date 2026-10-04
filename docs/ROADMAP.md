@@ -2,7 +2,10 @@
 
 Where the game is going, and the order to build it in. It's written for a **solo, part-time** developer working with Claude. Decisions and open questions are recorded so later work doesn't re-argue them.
 
-> **Status:** the lexicon (§3) is decided and applied. The Early Access scope (§5) still needs sign-off.
+> **Status:**
+> - The lexicon (§4) is decided and applied.
+> - The plan was revised after an honest review (§2). It adds playtest gates, roles and build depth, combat feel, safety, Windows and Steam Deck support, and a marketing track.
+> - **Decisions still needed:** §6.
 
 ---
 
@@ -11,33 +14,116 @@ Where the game is going, and the order to build it in. It's written for a **solo
 A third-person action MMO about cultivating inner power, inspired by progression fantasy. It ships on **Steam**.
 
 - **Character creation:** customizable humans. You pick a **discipline** (one of the four technique types), which permanently grants +3 talent points in that discipline's branch.
-- **Ways and Houses:** you choose one **Way** (Path) by doing a mentor's quest line, and you're locked in after that.
-  - Every Way belongs to exactly one **House** (Family). Joining it gives you the House's surname, its home city, and House quests.
+- **Ways and Houses:** you choose one **Way** by doing a mentor's quest line, and you're locked in after that.
+  - Every Way belongs to exactly one **House**. Joining it gives you the House's surname, its home city, and House quests.
 - **Talent tree:** four branches, one per discipline.
-- **Power tiers instead of levels:** the first seven tiers fill with power earned from fighting, quests, meditation and echoes, much like XP. Tiers beyond those are **locked behind achievements**: deeds and trials, not grinding.
+- **Power tiers instead of levels:** Iron through Diamond fill with power, much like XP. Master and above are **locked behind achievements**: deeds and trials, not grinding.
 - **No forced main story.** Content comes from Way quests, House quests and side quests.
 - **5-player dungeons** with intricate boss mechanics. They drop high-tier items appropriate to your power.
 - **Instanced PvP:** 1v1 and 2v2 arenas, and a 10v10 battleground. There are queues, ranked play, ratings and seasons.
 - **Art:** low-poly but good-looking, eventually produced through a 3D-generation MCP.
-- **Original IP:** the game uses only its own vocabulary (§3).
+- **Original IP:** only the game's own vocabulary (§4).
 
-## 2. A reality check, and the strategy
+### Design pillars
+Every feature has to serve at least one of these. When a choice is unclear, these decide it.
+1. **Every fight is skill.** Action combat with readable tells, real dodges and parries, and no auto-attack tab-target fights. Winning feels earned and losing feels fair.
+2. **Growth you can see and feel.** Breaking through a tier is a *moment*: visible changes to your character, new techniques, a body that's stronger. Progression fantasy lives or dies on this.
+3. **Your choices define you.** A permanent Way, a House name, a discipline. Builds that actually play differently.
+4. **Better together, never required.** Everything up to dungeons can be done solo. Playing with others is more fun and more rewarding.
+5. **Respect the player's time.** No dailies-as-chores, no grind walls. Short sessions are worth logging in for.
 
-This is an MMO with dungeons, ranked PvP and a quest-driven world, built by one person part-time. That only works if the plan is deliberate:
+---
 
-1. **Ship an Early Access slice, then grow it.**
-   - The first release is small: two Houses, one zone each plus the wilds, one dungeon, and arenas.
-   - Everything after that is content added to systems that already work.
-   - Building every system before anyone plays is how solo MMOs die.
-2. **Data-driven content.** Ways, techniques, talents, quests, items, beasts and bosses are data files plus tests that validate them, not code. Adding a quest or an item should take minutes and never need netcode changes.
-3. **Design for low player counts at launch.** An Early Access MMO might have 20 people online.
-   - **Quest content** has to work solo.
-   - **Dungeons** need a group finder, and later could be backfilled by bot companions.
-   - **10v10 battlegrounds** come after launch, once there's a population. 1v1 and 2v2 arenas fill fine with few players.
-4. **The server keeps final authority over everything that matters:** combat (already), loot, quests and trades. That's the cheapest anti-cheat, and Steam games get attacked.
-5. **Claude writes most of the code. Your time goes to** design decisions, playtesting, art direction and community. The roadmap is ordered so your playtests stay meaningful at every step.
+## 2. Honest review: what was missing
 
-## 3. Lexicon (decided, applied in code)
+The first draft was a solid *systems* plan, but it was thin on the things that make strangers **stay**. Here is what was missing, and where each item now lives.
+
+### A. Nothing checked whether the game is fun before content got built on top
+The plan built everything and only put it in front of strangers at Early Access. That's the biggest risk in the whole project. If combat or the first hour isn't fun, no amount of content saves it, and it's far cheaper to find out early.
+→ Added **three playtest gates** (§5): Gate A for combat, Gate B for the first hours, Gate C for a closed beta. Each has a go/no-go question. We don't build past a gate that fails.
+
+### B. Group play has no roles
+Dungeons with "intricate boss mechanics" need someone to hold the boss's attention, someone to keep people alive, or a deliberate design where neither is needed. The game currently has **no healing, no taunt or threat, and no support abilities**. MMO players notice this in the first dungeon.
+→ Added a **roles decision** (§6) and roles work in **Phase 3**.
+
+### C. Builds are too shallow for MMO players
+At Early Access there would be 2 Ways × 4 techniques, so everyone in a House plays nearly the same. MMO players want to theorycraft.
+→ **Phase 3** now targets about 8 techniques per Way (4 core, plus 4 unlocked by tier or talent), talents that *change* techniques rather than only adding +5%, and discipline identity that shows in play.
+
+### D. Game feel ("juice") wasn't planned
+Action combat is judged in the first 30 seconds:
+- impact pauses on hits (hit-stop), screen shake and good sound
+- readable enemy wind-ups, and animation that sells weight
+
+The placeholder capsules, the stiffness you already felt, and the lack of any audio would sink a first impression.
+→ Added **Phase 2: Combat feel and readability**, before Playtest Gate A.
+
+### E. Animation is a bigger risk than models
+3D-generation tools are getting good at *models*. Character *animation* (attacks, techniques, dodges, hit reactions for humans and every beast) is the harder part.
+→ **Phase 1** now commits to one standard humanoid skeleton and an animation library that can be retargeted onto any character. That means one animation set reused by every character, plus a short list of custom animations.
+
+### F. Strangers need safety and onboarding
+Today anyone can kill anyone anywhere. A new player getting killed repeatedly by a veteran in their first five minutes quits and leaves a bad review. Also missing:
+- a tutorial
+- a chat filter, reporting and muting
+- admin tools (kick, ban, inspect a character, restore items)
+- name rules
+
+→ Added **safe zones and PvP rules** (§6 decision), onboarding in **Phase 4**, and **moderation and admin tools** in **Phase 8**.
+
+### G. The platforms were wrong
+Development happens on a Mac, but about 95% of Steam players use **Windows**. The Steam Deck is a big audience for action games, and it needs **controller support** and readable UI at 800p. Neither was planned, and neither was performance on low-end PCs.
+→ The Windows build and a CI smoke test move to **Phase 0**. Controller support goes to **Phase 2**, and a minimum-spec performance pass to **Phase 8**.
+
+### H. Audio was a footnote
+Sound is half of how combat feels.
+→ It's now part of **Phase 2**, with CC0 or licensed sound effects and music first.
+
+### I. Nobody will find the game without marketing
+On Steam, launch-day visibility depends on **wishlists**. The store page needs to be up about **6–12 months before** Early Access, and a community (Discord, devlogs) has to be growing. The old plan made the store page a launch task.
+→ Added a **marketing and community track** that runs in parallel from Gate B onward (§5).
+
+### J. Business and legal basics
+These have to be in place before anyone pays:
+- the Steam Direct fee, and a company or tax setup
+- an EULA, a privacy policy and an age rating
+- a hosting budget
+- pricing (§6)
+
+→ In **Phase 8**, with the earlier items noted in the marketing track.
+
+### K. The timeline was optimistic
+MMOs are mostly *content*, and content is the bottleneck for a solo developer even with Claude writing code. The old estimate of 12–18 months to Early Access assumed nothing goes wrong.
+→ A realistic range is **18–30 months part-time**, depending on the art pipeline and how many gates need a second pass. Two levers can shorten it (§7): a **lower rank cap at Early Access** and **fewer zones**.
+
+### L. Smaller gaps, now placed
+- **Endgame loop at Early Access:** dungeon runs, arenas, achievement trials and gear chase. → Phases 5–7
+- **Economy:** gold sinks so currency doesn't inflate; the trading decision. → Phase 5 and §6
+- **Making the world feel lived in:** NPC routines, ambient wildlife, small world events. → Phase 4, light version
+- **Reliability before strangers:** save everyone on server shutdown, database backups, and no wipes after Early Access (or wipes announced clearly). → Phases 0 and 8
+- **Telemetry:** where players quit, how long tiers take, which techniques nobody uses. → Phase 4, so Gate B has data
+- **Steam Playtest** for closed tests: free and built into Steam. → Gate C
+- **Accessibility:** remappable keys, colorblind-safe telegraphs, subtitles, an option to turn off screen shake. → Phases 2 and 8
+- **Localization-ready text:** cheap if done early. → Phase 0
+
+---
+
+## 3. Strategy
+
+1. **Prove fun early, then build content.** Three playtest gates (§5). Never build more content on a loop that isn't fun yet.
+2. **Ship an Early Access slice, then grow it.** Building every system before anyone plays is how solo MMOs die.
+3. **Content is data, checked by tests.** Ways, techniques, talents, quests, items, beasts and bosses are data files. Adding a quest takes minutes and never touches netcode.
+4. **Design for small populations at launch.** An Early Access MMO might have 20 to 200 people online.
+   - **Solo:** everything up to dungeons can be done alone.
+   - **Dungeons:** a group finder, with optional bot companions later.
+   - **PvP:** 1v1 and 2v2 arenas fill fine with few players; the 10v10 battleground waits until there's a population.
+   - **One world at launch,** not several, so players aren't spread thin.
+5. **The server keeps final authority over everything that matters:** combat, loot, quests and trades. That's the cheapest anti-cheat.
+6. **Claude writes most of the code. Your time goes to** design, playtesting, art direction and community. Those are the parts only you can do.
+
+---
+
+## 4. Lexicon (decided, applied in code)
 
 The game's own vocabulary. It replaced every borrowed term in the code, data, UI and docs. A test (`_test_no_borrowed_terms`) fails if an old term comes back.
 
@@ -57,139 +143,199 @@ The game's own vocabulary. It replaced every borrowed term in the code, data, UI
 | **Master → Ascendant → Heavenly** | Tiers locked behind achievements, above Diamond |
 | **Cradle** | *Working title only.* It needs a real name before the Steam page; rename the repo then too. |
 
-## 4. Design decisions so far
-
-| Topic | Decision |
-|---|---|
-| Team | Solo, part-time, with Claude |
-| Talent tree | 4 branches, one per discipline. Your chosen discipline gets a permanent +3 points in its own branch. Your Way decides your techniques and element. |
-| Ways and Houses | One Way per House. Each House has a surname, a home city, House quests and a mentor quest line. |
-| Way choice | Made by finishing a mentor's quest line. Permanent. *(A paid or long-quest "renounce your Way" option is a possible later addition.)* |
-| Progression | Iron through Diamond fill with **power**, like XP, from combat, quests, meditation and echoes. Each tier raises stats and grants talent points. Master and above need **achievements or trials**. |
-| Rebrand | Done: the lexicon in §3. The title is still to be decided. |
-| Art | Low-poly, stylized. Placeholder CC0 assets until the 3D-generation MCP is connected. |
-| Story | No forced main story. Way, House and side quests only. |
-
-### Open questions (later is fine)
-1. **Business model:** buy-to-play Early Access (the usual for indie MMOs, and it deters bots), or free-to-play with cosmetics? Either way, avoid pay-to-win.
-2. **Hosting budget:** one cloud VM handles the Early Access load (a zone server uses about 15 ms per tick for 100 players). Multiple regions come later.
-3. **Death penalty and open-world PvP rules:** today the arena is free-for-all. Should cities be safe zones? Should killing players be flagged?
-4. **Economy:** player trading, an auction house, crafting professions?
-5. **Character customization depth:** preset faces plus colors (cheap), or sliders and blend shapes (expensive)?
-6. **What sits above Diamond at launch**, and what the first achievement trial is.
+---
 
 ## 5. Phases
 
-Estimates are **calendar time at roughly 10–15 hours a week**, and they're rough. Each phase ends with something to playtest.
+Estimates are **calendar time at roughly 10–15 hours a week**, and they're rough. Each phase ends with something to playtest. **Gates** are go/no-go checkpoints: if the answer is "no", the next phase is fixing it, not moving on.
 
-### Phase 0: Foundations for the long haul (≈3–5 weeks)
-- ✅ **Rebrand:** the lexicon (§3) is applied everywhere, with a test that guards against old terms coming back. The game title is still to be decided.
-- **Data-driven content:** move techniques, beasts, zones, ranks and sigils into authored resource files. Validation tests check every reference, the way the zone test does now.
-- **Character data model in the backend:** appearance, discipline, Way, House, power, talents, inventory and quest log. Use versioned save migrations so old characters keep loading.
-- **Deployability:**
-  - Godot dedicated-server export.
+### Phase 0: Foundations for the long haul (≈4–6 weeks)
+- ✅ **Rebrand** to the game's own vocabulary, with a guard test.
+- **Content as data:** techniques, beasts, zones, ranks and sigils move into authored resource files, with validation tests for every reference.
+- **Character data model** in the backend: appearance, discipline, Way, House, power, talents, inventory and quest log, with versioned save migrations.
+- **Builds:**
+  - A **Windows client export** and a **Linux dedicated-server export**.
   - A container for the zone server.
-  - Deploy the backend and zone servers to one cloud VM. This is where the game first exists on the internet.
-- **CI:** run the game tests, backend tests and a short bot smoke test on every push.
-- **Asset pipeline conventions:**
+- **First deployment:** the backend and zone servers on one cloud VM, with nightly database backups. The game exists on the internet for the first time.
+- **Graceful shutdown:** a server that's stopping saves every player first. That closes today's known gap.
+- **CI on every push:**
+  - the game tests and backend tests
+  - a short bot smoke test
+  - a Windows build
+- **Localization-ready text:** UI strings go through Godot's translation system from now on.
+- **Asset conventions:**
   - glTF models with metric scale.
-  - One shared humanoid skeleton, so any animation fits any character.
+  - **One standard humanoid skeleton**, so animations can be retargeted onto any character.
   - Low-poly budgets.
-  
-  These are ready for the 3D MCP when it arrives.
+  - An **art direction sheet:** palette, proportions and a reference board, so generated assets look like one game.
 
-### Phase 1: Characters (≈6–8 weeks)
-- **Character select and creation screen:**
-  - Body type, face preset, hair, colors.
-  - Choose a discipline (+3 talent points in its branch).
-  - Name.
+### Phase 1: Characters and animation (≈7–9 weeks)
+- **Character select and creation:** body type, face preset, hair, colors, discipline (+3 talent points in its branch) and name, with name rules (filter and reserved names).
 - **Humanoid characters replace the capsules:**
-  - A modular low-poly human (CC0 for now, MCP-generated later).
-  - An animation tree: locomotion, dodge, block, hit reactions, death, and attack and technique animations driven by the existing frame data.
-- **Equipment that shows on the character** (the visual hookup only; items come in Phase 4).
-- **Beasts get real models.** Hitboxes stay capsules; the netcode doesn't change.
+  - A modular low-poly human.
+  - A **retargetable animation library**: locomotion, dodge, block, hit reactions and death, plus attack and technique animations timed to the existing frame data.
+- **Beasts get real models and animations.** Hitboxes stay capsules; the netcode doesn't change.
+- **Equipment that shows on the character** (the visual hookup only).
+- **Settings screen:** keybinds, mouse sensitivity, graphics quality and volume.
 
-### Phase 2: Power, tiers and talents (≈4–6 weeks)
-- **Power progression:** a power meter filled by combat, echoes, quests and meditation, from Iron to Diamond. Breakthroughs still happen while meditating. Each tier raises stats and grants talent points.
-- **Talent tree:** 4 branches × roughly 15 talents each, mixing passives, technique modifiers and some new technique slots.
-  - Talents that affect movement or combat live in the shared simulation, so prediction stays exact. That's the same rule the current techniques follow.
-- **Respec** with a cost.
-- **Achievement framework:** tracks deeds across the game. It drives the tiers above Diamond, titles and Steam achievements later.
+### Phase 2: Combat feel and readability (≈5–7 weeks)
+- **Juice:**
+  - **Hit-stop:** a brief pause on impact, scaled by attack weight.
+  - Camera shake, with an off switch.
+  - Impact effects, technique effects, and weapon trails.
+  - Dodge and parry flashes.
+- **Audio:** sound effects for every attack, hit, block, parry, dodge and technique, plus footsteps, ambience and combat music. CC0 or licensed to start.
+- **Readability:**
+  - Enemy wind-up tells and **ground telegraphs** for area attacks.
+  - Cast bars on dangerous moves, and clear hit feedback (damage numbers, a target health bar).
+  - Colorblind-safe palettes.
+- **Smarter beasts:** distinct movesets per species, pack behavior, flinch resistance, and attacks you can learn to read.
+- **Lock-on 2.0:** switch targets, plus camera framing for big enemies.
+- **Controller support** and **Steam Deck-readable UI**.
 
-### Phase 3: Ways, Houses and quests (≈10–14 weeks), the heart of the game
-- **Quest system** (data-driven, with all checks on the server):
+> ### 🚦 Playtest Gate A: is fighting fun?
+> **Who:** 5–10 friends, plus a few people from an MMO or action-game community.
+> **What:** a 30-minute combat sandbox: beasts, dummies and a 1v1 against each other.
+> **Go if:** people keep playing after they're asked to stop. They can describe dodging and parrying as satisfying, and nobody calls it "stiff" or "floaty".
+> **If not:** iterate on Phase 2 until it passes. Nothing built after this point fixes combat that isn't fun.
+
+### Phase 3: Power, roles and build depth (≈7–9 weeks)
+- **Power tiers Iron → Diamond:** power earned from combat, echoes, quests and meditation. Breakthroughs happen while meditating and are a **moment**: a visual aura change, a new technique, a stat jump, a sound cue.
+- **Roles** (per the §6 decision): healing or support, a way to hold threat or the boss's attention (or a deliberate design without them), and buffs from Builder constructs and Controller zones.
+- **Talent tree:** 4 branches × about 15 talents. Many of them **change how a technique plays**, not only add +5%. Respec has a cost.
+- **About 8 techniques per Way:** 4 core, plus 4 unlocked by tier or talent.
+- **Achievement framework:** it drives the tiers above Diamond, titles and Steam achievements.
+- **A second Way (and House) to prototype**, so build variety can actually be tested.
+
+### Phase 4: Ways, Houses and the first hours (≈12–16 weeks), the heart of the game
+- **Quest system** (data-driven, all checks on the server):
   - Objectives: talk, kill, collect, explore, escort, meditate somewhere, claim an echo, defeat a rival.
-  - Quest chains and prerequisites.
-  - Dialogue trees with NPC portraits and voices *(stretch)*.
-  - Quest log and tracker UI, a world map and a minimap.
-- **NPCs:** mentors, quest givers and vendors, placed through zone data.
-- **Way selection:** a mentor quest line in each House city ends in the choice, which is permanent. You get the Way's techniques and the House surname ("Wei" becomes "Wei Vaelor").
-- **Content: 2 Houses at Early Access**, each with:
-  - A Way: 4 techniques, one per discipline, plus talent-tree hooks.
-  - A city zone.
+  - Quest chains and prerequisites, and dialogue with NPCs.
+  - A quest log and tracker, a world map and a minimap.
+- **Onboarding:** a short tutorial area that teaches movement, dodging, parrying, meditation and echoes through play, then leads into choosing a Way.
+- **Way selection:** a mentor quest line in each House city ends in the choice, which is permanent. You get the Way's techniques and the House surname ("Tavi" becomes "Tavi Vaelor").
+- **Content: 2 Houses at Early Access,** each with:
+  - A Way.
+  - A city.
   - About 10 House quests.
-  - About 15 side quests in the shared wilds.
-  
-  Kindled Flame (fire) plus an earth or wind House.
-- **Social systems an MMO can't launch without:** chat (zone, House, party, whisper), a friends list and parties.
+  - About 30 side quests across the shared zones.
+- **Safety and the PvP rules** (per §6): safe cities, PvP flagging or opt-in zones, and the death penalty.
+- **Social:** chat (zone, House, party, whisper) with a filter, muting and reporting; friends; parties.
+- **A world that feels lived in (light version):** NPC routines, ambient wildlife, and a couple of small recurring world events.
+- **Telemetry:** session length, where players quit, time per tier, how much each technique is used.
 
-### Phase 4: Items and loot (≈5–7 weeks)
-- **Inventory, equipment slots and item stats**, with rarity and tier gates. Items are original artifacts and natural treasures (spirit fruits, sigil scrolls, forged weapons), not ones from the books.
-- **Loot tables** for beasts, quests and dungeons. Loot is rolled and handed out on the server, and saved to the backend in a single atomic step so items can't be duplicated.
-- **Vendors and currency.** Trading between players is decided by open question 4.
+> ### 🚦 Playtest Gate B: are the first hours fun?
+> **Who:** 20–50 testers, including strangers from a Discord.
+> **What:** create a character, play through the tutorial, choose a Way, and play about 3 hours of content.
+> **Go if:** most testers reach their Way choice and keep playing after it, telemetry shows no single cliff where people quit, and testers ask "when can I play more?"
+> **If not:** fix pacing, onboarding or content before building dungeons. **The Steam store page goes up after this gate passes.**
 
-### Phase 5: Dungeons (≈10–12 weeks for the framework and the first dungeon)
-- **Instance orchestration:** the backend starts a short-lived instance server per group, on demand, from a pool of processes on the VM, and shuts it down when the group leaves. The same system powers PvP.
-- **Group finder:** queue as a role or as a premade group.
-- **Boss mechanics framework (data-driven):**
-  - Phases, telegraphed area attacks (ground decals), adds, positional mechanics (stack, spread, soak), interrupts via parry or stagger, and enrage timers.
-  - All of it runs on the existing server-authoritative combat code.
+### Phase 5: Items, loot and economy (≈5–7 weeks)
+- **Gear:** inventory, equipment slots and item stats, with rarity and tier gates. Items are original artifacts and natural treasures.
+- **Loot tables** for beasts, quests and dungeons, rolled on the server and saved atomically so items can't be duplicated.
+- **Economy:** vendors, a currency, and **currency sinks** (repairs, respecs, sigil crafting fees), so currency doesn't inflate. Trading per §6.
+- **The gear chase:** loot that changes how you play (for example, items that modify techniques), not just bigger numbers.
+
+### Phase 6: Dungeons (≈10–12 weeks for the framework and the first dungeon)
+- **Instance orchestration:** a server started on demand per group, from a pool of processes.
+- **Group finder:** queue by role, or as a premade group.
+- **Boss mechanics framework (data-driven):** phases, ground telegraphs, adds, stack, spread and soak mechanics, interrupts, and enrage timers.
 - **First dungeon:** 3 bosses plus trash packs, with tier-appropriate loot. Normal difficulty first, harder modes later.
 
-### Phase 6: Instanced PvP (≈8–10 weeks)
-- **Matchmaking service:** queues and Glicko-2 ratings, kept separately for each bracket (1v1, 2v2, 10v10). Ranked and unranked queues; seasons and rewards.
-- **Arenas:** 1v1 and 2v2 maps, best-of rounds, and normalized gear for ranked play (decide whether that's on).
-- **10v10 battleground:** objective mode (capture points or carrying echoes). Ships *after* Early Access launch, when the population can fill it. Bots can fill unranked games in the meantime.
+### Phase 7: Arenas (≈6–8 weeks)
+- **Matchmaking:** Glicko-2 ratings per bracket, ranked and unranked queues, and seasons.
+- **1v1 and 2v2 arenas:** best-of rounds, with normalized gear for ranked play (decide in §6).
+- **Spectating:** a nice-to-have, but it builds community.
+- **The 10v10 battleground** comes after Early Access.
 
-### Phase 7: Steam and Early Access launch (≈6–8 weeks)
-- **Steamworks (GodotSteam):**
-  - Log in with Steam session tickets, replacing username and password.
-  - The overlay, achievements (from the Phase 2 framework), and rich presence.
-- **Store page, trailer and screenshots.** This needs the real art from Phases 1–3. Price per open question 1.
+### Phase 8: Launch readiness (≈8–10 weeks)
+- **Steamworks (GodotSteam):** Steam login replaces username and password, plus the overlay, achievements, rich presence and cloud settings.
+- **Moderation and admin tools:**
+  - Kick, mute and ban, a report queue, and character inspection.
+  - Item restore for support cases.
+  - An audit log of actions.
 - **Operations:**
-  - Monitoring and alerts, database backups, a deploy pipeline, and an announcements channel.
-  - A support and bug-report flow.
-  - Privacy policy and terms of service, since the game stores account data.
-- **Hardening:** rate limiting, an audit of what the server trusts from clients, soak tests at 2× the expected population, and a reconnect and crash-recovery pass. That includes saving every player when a server shuts down cleanly (a known gap today).
-- **Early Access launch.** Assets from the 3D-generation MCP slot into Phases 1–5 whenever it's connected, under the Phase 0 conventions.
+  - Monitoring and alerts, and tested backups.
+  - A deploy pipeline with zero-downtime or announced maintenance.
+  - A status page, and a bug-report flow from in-game.
+- **Hardening:**
+  - Rate limiting, and an audit of what the server trusts from clients.
+  - Soak tests at 2× the expected population.
+  - Crash recovery, and a pass over cheats and exploits.
+- **Performance:** a minimum-spec target (for example a 2018 laptop GPU at 60 fps on low), and a Steam Deck pass.
+- **Legal and business:** EULA, privacy policy, age rating, pricing, and a company or tax setup.
+- **Accessibility pass.**
 
-**Early Access scope:** Phases 0–5, plus 1v1 and 2v2 arenas from Phase 6, plus Phase 7. That's roughly **12–18 months** part-time.
+> ### 🚦 Gate C: closed beta (Steam Playtest)
+> **Who:** about 100–500 strangers from the wishlist and Discord.
+> **What:** the full Early Access build, for 1–2 weekends.
+> **Go if:**
+> - the servers hold up
+> - there are no progress-losing bugs
+> - players come back on day 2 and day 7 at a healthy rate
+> - the most common feedback is "more content", not "this is broken" or "this isn't fun"
+
+### 🚀 Early Access launch
+
+**Early Access scope:** Phases 0–8.
+**Realistic estimate:** **18–30 months** part-time.
+
+The biggest variables are the art and animation pipeline, and whether any gate needs a second pass.
+
+### Parallel tracks
+- **Marketing and community** (from Gate B):
+  - A Discord, devlogs or short videos every few weeks, and a dev diary on the store page.
+  - **The Steam page live 6–12 months before Early Access,** to collect wishlists.
+  - A trailer once Phase 6 has footage.
+  - Steam Next Fest with a demo, if the timing works.
+- **Art:** as soon as the 3D-generation MCP is connected, replace placeholders zone by zone under the Phase 0 art direction sheet.
 
 ### After Early Access
-- More Houses and Ways, zones and dungeons. Each one is mostly content work at that point.
-- 10v10 battlegrounds, ranked seasons, and the achievement tiers above Diamond (Master and beyond).
-- World events, House-versus-House conflicts, crafting, mounts, housing, and anything else the community asks for.
+- More Houses and Ways, zones and dungeons, raising the rank cap toward Diamond.
+- The 10v10 battleground, ranked seasons, and the achievement-locked tiers (Master, Ascendant, Heavenly).
+- World events, House-versus-House conflicts, crafting, mounts, housing, guilds, and whatever the community asks for.
 
-## 6. Systems you didn't mention that an MMO will need
+---
 
-Ordered roughly by when they become necessary:
-1. Chat, friends and parties (Phase 3)
-2. A world map and minimap (Phase 3)
-3. Settings: keybinds, mouse sensitivity, graphics, audio (Phase 1)
-4. Audio: music, combat sound effects, ambience (from Phase 1 onward; CC0 to start)
-5. A tutorial and onboarding area (Phase 3)
-6. Moderation: reporting, muting, bans (before Early Access)
-7. Name filtering and reserved names (Phase 1)
-8. Server-side analytics: where players quit, how long things take (before Early Access)
-9. Localization-ready UI strings (cheap if done in Phase 0–1; expensive later)
-10. A death penalty and safe zones (Phase 3)
-11. Guilds, separate from Houses, as a player-run social group (after Early Access)
-12. Accessibility: colorblind-safe telegraphs, remappable controls, subtitles (ongoing)
+## 6. Decisions still needed
 
-## 7. Technical direction
+These are ordered by when they block work.
 
-- **Engine:** Godot 4 with GDScript stays. The load test shows headroom for 100 players per zone server. If a hot path ever needs it, it can move to C++ via GDExtension without changing the design.
-- **One codebase for client and server, and the server decides.** Every new mechanic (talents, items that change stats, boss abilities) goes into the shared simulation, or is resolved only on the server. Prediction must stay exact, and the replay test guards that.
-- **Backend:** TypeScript with Postgres. It gains instance orchestration, matchmaking, quests, inventory and social services, either as one service with modules or split apart only when load demands it.
+| # | Decision | Blocks | Recommendation |
+|---|---|---|---|
+| 1 | **Roles:** classic tank, healer and DPS; soft roles (anyone can contribute support, as in Guild Wars 2); or no roles, where everyone self-sustains | Phase 3 | **Soft roles.** Each discipline leans one way: Enforcer toward frontline and threat, Builder toward shields and heals through constructs, Controller toward crowd control and buffs, Lancer toward damage. A group of any composition can clear normal dungeons, and good role play makes harder modes possible. This fits action combat and small populations. |
+| 2 | **Rank cap at Early Access** | Phases 3–4 (content volume) | **Gold** (4 tiers), with Platinum and Diamond added in post-launch updates. That's about 10–15 hours of content to reach the cap, plus repeatable dungeons and arenas. Launching with all 6 tiers roughly doubles the content needed. |
+| 3 | **Open-world PvP:** fully open; flag to opt in; or only in contested zones | Phase 4 | **Safe cities and starter areas, contested wilds with opt-in flagging,** plus a few always-PvP zones with better rewards. That protects newcomers and still gives PvP players danger. |
+| 4 | **Death penalty** | Phase 4 | **Light:** respawn at a shrine, take temporary "spirit fatigue" (−10% to stats for 2 minutes), and drop an echo that someone else can claim but that holds none of your items. |
+| 5 | **Player trading and an auction house** | Phase 5 | **Trading and an auction house, with most dungeon loot bound to the character on pickup.** The economy exists, but the best gear is earned. |
+| 6 | **Business model** | Phase 8 (and the marketing track) | **Buy-to-play Early Access** (about $15–25), with only cosmetics after that. It deters bots, fits indie MMO expectations, and avoids pay-to-win. |
+| 7 | **Customization depth** | Phase 1 | **Presets plus colors** (face, hair and body presets; skin, hair and eye colors). Sliders can come later. |
+| 8 | **Target platforms** | Phase 0 | **Windows first, with the Steam Deck verified.** Linux and macOS clients are a nice-to-have; servers run on Linux. |
+| 9 | **Server region(s)** | Phase 8 | **One region at launch,** placed near most of the wishlist audience. Lag compensation already handles up to about 150 ms well. |
+| 10 | **Game title** | Store page (after Gate B) | — |
+
+---
+
+## 7. Scope levers (if time runs long)
+
+Pull these in order. Each one cuts months without hurting the pillars:
+1. **Rank cap at Bronze or Silver at Early Access,** instead of Gold.
+2. **One House city plus a shared hub,** instead of two cities.
+3. **Arenas after Early Access,** so it launches with dungeons only.
+4. **Fewer, deeper side quests,** with repeatable world events instead of quests.
+
+Never cut:
+- **Combat feel** (Phase 2)
+- **Onboarding**
+- **Safety**
+- **The playtest gates**
+
+---
+
+## 8. Technical direction
+
+- **Engine:** Godot 4 with GDScript stays. The load test shows headroom for 100 players per zone server. Hot paths can move to C++ via GDExtension without changing the design.
+- **One codebase for client and server, and the server decides.** Every new mechanic (talents, items that change stats, boss abilities, healing) goes into the shared simulation, or is resolved only on the server. Prediction must stay exact, and the replay test guards that.
+- **Backend:** TypeScript with Postgres. It gains instance orchestration, matchmaking, quests, inventory, social and moderation services, as modules in one service until load demands splitting.
 - **Content as data, checked by tests:** every reference (quest → NPC, loot → item, Way → technique) is validated in CI.
 - **Bandwidth:** delta compression and splitting large snapshots across packets, before the 10v10 battleground and crowded cities.
