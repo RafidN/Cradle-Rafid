@@ -3,9 +3,9 @@ extends Node
 ## depending on the build and these command-line arguments (with or without a "--"
 ## separator before them, so they also work in the editor's Customize Run Instances):
 ##   --server [--port=7777] [--log-hits] [--essence-mult=N]
-##   --server [--zone=ID] [--stats] [--backend=URL --world=ID --server-secret=S --shard-name=N --public-host=H]
+##   --server [--zone=ID] [--stats] [--admin-port=N (default port+1000; 0 = off)] [--backend=URL --world=ID --server-secret=S --shard-name=N --public-host=H]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
-##   --backend=URL [--account=user:password --character=Name] [--bot]  (online client)
+##   --backend=URL [--account=user:password --character=Name --discipline=lancer] [--bot]  (online client)
 ##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
 ## Headless runs and dedicated_server exports start a server unless --connect is given.
 
@@ -46,7 +46,7 @@ func _ready() -> void:
 		if args.has("account"):
 			var account := String(args.account).split(":", true, 1)
 			_account_panel.auto_play(account[0], account[1] if account.size() > 1 else "",
-				String(args.get("character", account[0])))
+				String(args.get("character", account[0])), String(args.get("discipline", "enforcer")))
 		return
 	if args.has("connect"):
 		_start_client(
@@ -72,6 +72,7 @@ func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	server.essence_mult = maxi(essence_mult, 1)
 	server.zone_id = String(_args.get("zone", Zones.DEFAULT))
 	server.log_stats = _args.has("stats")
+	server.admin_port = String(_args.get("admin-port", str(port + 1000))).to_int()
 	if _args.has("backend"):
 		server.backend = BackendClient.new()
 		server.backend.base_url = String(_args.backend)

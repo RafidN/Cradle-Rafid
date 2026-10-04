@@ -15,7 +15,7 @@ PIDS=()
 cleanup() { kill "${PIDS[@]}" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
-"$GODOT" --path "$ROOT" --headless -- --server &
+"$ROOT/tools/server_entrypoint.sh" "$GODOT" --path "$ROOT" --headless -- --server &
 PIDS+=($!)
 sleep 1
 

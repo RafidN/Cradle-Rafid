@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 6
+const VERSION := 7
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -83,12 +83,13 @@ static func decode_inputs(buf: StreamPeerBuffer) -> Array[PlayerInput]:
 
 # --- Server -> client ---------------------------------------------------------------
 
-static func encode_welcome(entity_id: int, position: Vector3, facing: float, zone_id: String) -> PackedByteArray:
+static func encode_welcome(entity_id: int, position: Vector3, facing: float, zone_id: String, way_id: String) -> PackedByteArray:
 	var buf := _writer(Msg.WELCOME)
 	buf.put_u32(entity_id)
 	_put_vector3(buf, position)
 	buf.put_float(facing)
 	_put_string(buf, zone_id)
+	_put_string(buf, way_id)
 	return buf.data_array
 
 
@@ -100,6 +101,8 @@ static func decode_welcome(buf: StreamPeerBuffer) -> Dictionary:
 	}
 	var zone_id = _get_string(buf, 64)
 	welcome.zone = zone_id if zone_id != null else Zones.DEFAULT
+	var way_id = _get_string(buf, 64)
+	welcome.way = way_id if way_id != null else Ways.DEFAULT
 	return welcome
 
 

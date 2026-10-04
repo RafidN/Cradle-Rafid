@@ -208,6 +208,7 @@ func _on_welcome(welcome: Dictionary) -> void:
 	_body.name = "LocalPlayer"
 	_world.add_child(_body)
 	_progress.apply_to(_body)
+	_body.loadout = Ways.loadout(welcome.way)
 	_body.respawn(welcome.position, welcome.facing)
 	_body.reset_physics_interpolation()
 

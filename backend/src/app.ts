@@ -18,6 +18,12 @@ import type { Db } from "./db.js";
 import { hashPassword, newToken, verifyPassword } from "./auth.js";
 
 const USERNAME = /^[A-Za-z0-9_]{3,16}$/;
+/** The four disciplines (shared/data: TechniqueData.Kind). Chosen at creation, permanent. */
+export const DISCIPLINES = ["enforcer", "lancer", "controller", "builder"] as const;
+/** Appearance: preset indexes and colors. Unknown keys are dropped. */
+const APPEARANCE_PRESETS = { body: 4, face: 8, hair: 12 } as const;
+const APPEARANCE_COLORS = ["skin", "hair_color", "eye_color"] as const;
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const CHARACTER_NAME = /^[A-Za-z][A-Za-z0-9]{2,15}$/;
 const MIN_PASSWORD = 8;
 const MAX_BODY_BYTES = 16 * 1024;
@@ -49,6 +55,9 @@ interface CharacterRow {
   online_shard: string | null;
   world: string | null;
   zone: string;
+  discipline: string;
+  appearance: unknown;
+  way: string | null;
 }
 
 interface ShardRow {
@@ -62,7 +71,28 @@ interface ShardRow {
   capacity: number;
 }
 
-const CHARACTER_COLUMNS = "id, name, progress, online_shard, world, zone";
+const CHARACTER_COLUMNS = "id, name, progress, online_shard, world, zone, discipline, appearance, way";
+
+/** Validates a creation request's appearance; throws on bad values. */
+function parseAppearance(input: unknown): Record<string, number | string> {
+  const source = (typeof input === "object" && input !== null ? input : {}) as Record<string, unknown>;
+  const appearance: Record<string, number | string> = {};
+  for (const [key, count] of Object.entries(APPEARANCE_PRESETS)) {
+    const value = source[key] ?? 0;
+    if (!Number.isInteger(value) || (value as number) < 0 || (value as number) >= count) {
+      throw new HttpError(400, `Appearance ${key} must be 0-${count - 1}`);
+    }
+    appearance[key] = value as number;
+  }
+  for (const key of APPEARANCE_COLORS) {
+    if (source[key] === undefined) continue;
+    if (typeof source[key] !== "string" || !HEX_COLOR.test(source[key] as string)) {
+      throw new HttpError(400, `Appearance ${key} must be a #rrggbb color`);
+    }
+    appearance[key] = source[key] as string;
+  }
+  return appearance;
+}
 const ZONE_ID = /^[a-z0-9_]{1,32}$/;
 
 export function createApp(db: Db, config: Config): Server {
@@ -121,8 +151,10 @@ export function createApp(db: Db, config: Config): Server {
   const serverAddress = (shard: ShardRow) =>
     ({ id: shard.id, name: shard.name, world: shard.world, zone: shard.zone, host: shard.host, port: shard.port });
 
-  const publicCharacter = (row: CharacterRow) =>
-    ({ id: Number(row.id), name: row.name, progress: row.progress, world: row.world, zone: row.zone });
+  const publicCharacter = (row: CharacterRow) => ({
+    id: Number(row.id), name: row.name, progress: row.progress, world: row.world, zone: row.zone,
+    discipline: row.discipline, appearance: row.appearance, way: row.way,
+  });
 
   // --- Public ------------------------------------------------------------------------
 
@@ -162,6 +194,11 @@ export function createApp(db: Db, config: Config): Server {
     const accountId = await accountFrom(req);
     const name = String(body.name ?? "");
     if (!CHARACTER_NAME.test(name)) throw new HttpError(400, "Names are 3-16 letters or digits, starting with a letter");
+    const discipline = String(body.discipline ?? "");
+    if (!(DISCIPLINES as readonly string[]).includes(discipline)) {
+      throw new HttpError(400, `Choose a discipline: ${DISCIPLINES.join(", ")}`);
+    }
+    const appearance = parseAppearance(body.appearance);
     const owned = await db.query("SELECT 1 FROM characters WHERE account_id = $1", [accountId]);
     if (owned.length >= config.maxCharactersPerAccount) {
       throw new HttpError(409, `An account can have at most ${config.maxCharactersPerAccount} characters`);
@@ -169,7 +206,8 @@ export function createApp(db: Db, config: Config): Server {
     const taken = await db.query("SELECT 1 FROM characters WHERE lower(name) = lower($1)", [name]);
     if (taken.length) throw new HttpError(409, "That name is taken");
     const rows = await db.query<CharacterRow>(
-      `INSERT INTO characters (account_id, name) VALUES ($1, $2) RETURNING ${CHARACTER_COLUMNS}`, [accountId, name]);
+      `INSERT INTO characters (account_id, name, discipline, appearance) VALUES ($1, $2, $3, $4) RETURNING ${CHARACTER_COLUMNS}`,
+      [accountId, name, discipline, JSON.stringify(appearance)]);
     return [201, { character: publicCharacter(rows[0]) }];
   });
 
@@ -223,7 +261,8 @@ export function createApp(db: Db, config: Config): Server {
     const characters = await db.query<CharacterRow>(
       `UPDATE characters SET online_shard = s.id, world = s.world, zone = s.zone
        FROM shards s WHERE characters.id = $1 AND s.id = $2
-       RETURNING characters.id, characters.name, characters.progress, characters.online_shard, characters.world, characters.zone`,
+       RETURNING characters.id, characters.name, characters.progress, characters.online_shard, characters.world,
+         characters.zone, characters.discipline, characters.appearance, characters.way`,
       [ticket.character_id, ticket.shard_id]);
     if (!characters[0]) throw new HttpError(404, "Unknown server");
     return { character: publicCharacter(characters[0]), spawn: ticket.spawn };

@@ -75,6 +75,11 @@ const SCHEMA = [
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS world TEXT`,
   `ALTER TABLE characters ADD COLUMN IF NOT EXISTS zone TEXT NOT NULL DEFAULT 'proving_grounds'`,
   `ALTER TABLE join_tickets ADD COLUMN IF NOT EXISTS spawn TEXT NOT NULL DEFAULT 'default'`,
+  // Character identity (Phase 0): discipline chosen at creation, appearance presets and
+  // colors, and the Way (null until chosen in game; it also decides the House surname).
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS discipline TEXT NOT NULL DEFAULT 'enforcer'`,
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS appearance JSONB NOT NULL DEFAULT '{}'::jsonb`,
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS way TEXT`,
 ];
 
 /** Creates any missing tables and columns. Safe to run on every start. */

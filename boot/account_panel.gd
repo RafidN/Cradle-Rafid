@@ -22,6 +22,8 @@ var _login_box := VBoxContainer.new()
 var _characters_box := VBoxContainer.new()
 var _character_list := VBoxContainer.new()
 var _new_name_edit := LineEdit.new()
+var _discipline_picker := OptionButton.new()
+var _discipline_summary := Label.new()
 var _play_button := Button.new()
 var _status := Label.new()
 var _buttons: Array[Button] = []
@@ -70,6 +72,14 @@ func _ready() -> void:
 	_new_name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	create_row.add_child(_new_name_edit)
 	_add_button(create_row, "Create", _on_create)
+	for discipline: Dictionary in Disciplines.ALL:
+		_discipline_picker.add_item(discipline.name)
+	_discipline_picker.item_selected.connect(_show_discipline)
+	_characters_box.add_child(_discipline_picker)
+	_discipline_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_discipline_summary.modulate = Color(1, 1, 1, 0.7)
+	_characters_box.add_child(_discipline_summary)
+	_show_discipline(0)
 	_play_button.text = "Enter the world"
 	_play_button.disabled = true
 	_play_button.pressed.connect(_on_play)
@@ -87,7 +97,7 @@ func set_backend_url(url: String) -> void:
 
 ## Logs in (registering the account if it doesn't exist), creates the character if
 ## needed, and joins with it. Used by --account/--character for bots and scripts.
-func auto_play(username: String, password: String, character_name: String) -> void:
+func auto_play(username: String, password: String, character_name: String, discipline := "enforcer") -> void:
 	_user_edit.text = username
 	_password_edit.text = password
 	if not await _authenticate(false, true) and not await _authenticate(true):
@@ -96,7 +106,8 @@ func auto_play(username: String, password: String, character_name: String) -> vo
 	var characters := await _load_characters()
 	var match_found := characters.filter(func(c: Dictionary): return String(c.name).to_lower() == character_name.to_lower())
 	if match_found.is_empty():
-		var created := await _backend.request_json(HTTPClient.METHOD_POST, "/characters", {"name": character_name})
+		var created := await _backend.request_json(HTTPClient.METHOD_POST, "/characters",
+			{"name": character_name, "discipline": discipline})
 		if not created.ok:
 			_show_status(created.error, true)
 			failed.emit(created.error)
@@ -145,12 +156,19 @@ func _load_characters() -> Array:
 		var progress := ProgressState.from_dict(character.progress if character.progress is Dictionary else {})
 		var button := Button.new()
 		button.toggle_mode = true
-		button.text = "%s  ·  %s" % [character.name, Advancement.rank_name(progress.rank)]
+		button.text = "%s  ·  %s %s" % [character.name, Advancement.rank_name(progress.rank),
+			Disciplines.display_name(str(character.get("discipline", "")))]
 		button.pressed.connect(_select.bind(character, button))
 		_character_list.add_child(button)
 	if characters.is_empty():
 		_show_status("Create your first character")
 	return characters
+
+
+func _show_discipline(index: int) -> void:
+	var discipline: Dictionary = Disciplines.ALL[index]
+	_discipline_summary.text = "%s: %s (+%d talent points in its branch, permanently)" % [
+		discipline.name, discipline.summary, Disciplines.DISCIPLINE_BONUS_POINTS]
 
 
 func _select(character: Dictionary, chosen: Button) -> void:
@@ -162,7 +180,9 @@ func _select(character: Dictionary, chosen: Button) -> void:
 
 func _on_create() -> void:
 	_busy(true, "Creating...")
-	var result := await _backend.request_json(HTTPClient.METHOD_POST, "/characters", {"name": _new_name_edit.text.strip_edges()})
+	var discipline: Dictionary = Disciplines.ALL[_discipline_picker.selected]
+	var result := await _backend.request_json(HTTPClient.METHOD_POST, "/characters",
+		{"name": _new_name_edit.text.strip_edges(), "discipline": discipline.id})
 	_busy(false)
 	if not result.ok:
 		_show_status(result.error, true)

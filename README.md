@@ -295,6 +295,8 @@ Register an account, create a character, and enter the world. Walk through the g
 | *(none, windowed)* | A connect menu with Connect / Start Server and network simulation settings |
 | `--server [--port=7777] [--zone=proving_grounds]` | Server for one zone. A headless run or a `dedicated_server` export does the same thing without the flag. |
 | `--stats` (server) | Print tick time (with a per-phase breakdown) and bandwidth every 5 s |
+| `--admin-port=N` (server) | Localhost admin port, default game port + 1000. Send `status` or `shutdown [reason]`. Shutdown warns players, saves everyone and quits. Run servers through `tools/server_entrypoint.sh` so SIGTERM and Ctrl+C trigger it (Godot can't catch signals itself). |
+| `--discipline=ID` (online client) | Discipline for a character created by `--account`: `enforcer`, `lancer`, `controller` or `builder` |
 | `--travel` (bot) | Head for a portal shortly after arriving, to exercise zone transfers |
 | `--backend=URL` (server) | Online mode, plus `--world=alpha --server-secret=S --shard-name=N --public-host=H` |
 | `--backend=URL` (client) | Fill in the backend URL on the login screen |

@@ -26,9 +26,9 @@ for _ in $(seq 1 40); do
   sleep 0.5
 done
 
-"$GODOT" --path "$ROOT" --headless -- --server --port=7777 --zone=proving_grounds --backend="$BACKEND_URL" &
+"$ROOT/tools/server_entrypoint.sh" "$GODOT" --path "$ROOT" --headless -- --server --port=7777 --zone=proving_grounds --backend="$BACKEND_URL" &
 PIDS+=($!)
-"$GODOT" --path "$ROOT" --headless -- --server --port=7778 --zone=ember_wilds --backend="$BACKEND_URL" &
+"$ROOT/tools/server_entrypoint.sh" "$GODOT" --path "$ROOT" --headless -- --server --port=7778 --zone=ember_wilds --backend="$BACKEND_URL" &
 PIDS+=($!)
 sleep 1
 

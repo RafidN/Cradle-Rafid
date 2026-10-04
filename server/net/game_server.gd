@@ -30,6 +30,8 @@ const AUTOSAVE_SECONDS := 10.0
 const PEER_TIMEOUT_MIN_MS := 4000
 const PEER_TIMEOUT_MAX_MS := 10000
 const STATS_SECONDS := 5.0
+## On shutdown, players are warned and saved; quit anyway if saving takes longer than this.
+const SHUTDOWN_TIMEOUT_SECONDS := 15.0
 
 
 class ClientSession:
@@ -50,6 +52,9 @@ class ClientSession:
 	var transferring := false
 	## Where in this zone the player arrived (spawn name).
 	var arrived_at := "default"
+	var discipline := "enforcer"
+	## The character's Way; until Way selection exists everyone follows Ways.DEFAULT.
+	var way_id := Ways.DEFAULT
 
 
 class Dummy:
@@ -72,6 +77,9 @@ var essence_mult := 1
 var zone_id := Zones.DEFAULT
 ## Print tick time and bandwidth every few seconds.
 var log_stats := false
+## Localhost-only admin port ("status", "shutdown"). Godot can't catch SIGTERM, so
+## tools/server_entrypoint.sh turns stop signals into a "shutdown" here. 0 = off.
+var admin_port := 0
 ## Online mode: set before start(). Null runs offline.
 var backend: BackendClient
 ## The world (shard) this server belongs to; each world runs one server per zone.
@@ -84,6 +92,9 @@ var public_host := "127.0.0.1"
 
 var _sessions := {}  # peer_id -> ClientSession
 var _joining := {}  # peer_id -> true while their join ticket is being redeemed
+var _admin := TCPServer.new()
+var _admin_peers: Array[StreamPeerTCP] = []
+var _shutting_down := false
 var _dummies: Array[Dummy] = []
 var _beasts: Array[Beast] = []
 var _info := {}  # entity_id -> {name, kind, species, rank}, for every fighter
@@ -141,6 +152,12 @@ func start(port: int) -> Error:
 		_zone.display_name, port, Protocol.VERSION, Protocol.TICK_RATE])
 	if log_stats:
 		_every(STATS_SECONDS, _report_stats)
+	if admin_port > 0:
+		var admin_err := _admin.listen(admin_port, "127.0.0.1")
+		if admin_err == OK:
+			print("[server] Admin port %d (localhost only)" % admin_port)
+		else:
+			push_warning("[server] Admin port %d unavailable: %s" % [admin_port, error_string(admin_err)])
 	if backend:
 		add_child(backend)
 		_every(HEARTBEAT_SECONDS, _send_heartbeat)
@@ -340,7 +357,7 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 		return
 	if backend == null:
 		var display_name := String(hello.name).strip_edges().left(Protocol.MAX_NAME_LENGTH)
-		_admit(peer_id, display_name if not display_name.is_empty() else "Practitioner", -1, ProgressState.new())
+		_admit(peer_id, display_name if not display_name.is_empty() else "Practitioner", -1, ProgressState.new(), "default", {})
 		return
 	if _joining.has(peer_id):
 		return
@@ -372,25 +389,33 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 			_remove_session(old, false)
 			multiplayer.multiplayer_peer.disconnect_peer(old.peer_id)
 			print("[server] %s reconnected; dropped the old connection" % old.display_name)
-	_admit(peer_id, String(character.get("name", "Practitioner")), character_id, progress, String(redeemed.data.get("spawn", "default")))
+	_admit(peer_id, String(character.get("name", "Practitioner")), character_id, progress,
+		String(redeemed.data.get("spawn", "default")), character)
 
 
+## character: the backend's character record (discipline, appearance, Way); {} offline.
 func _admit(peer_id: int, display_name: String, character_id: int, progress: ProgressState,
-		spawn_name := "default") -> void:
+		spawn_name: String, character: Dictionary) -> void:
 	var session := ClientSession.new()
 	session.peer_id = peer_id
 	session.display_name = display_name
 	session.character_id = character_id
 	session.progress = progress
+	var discipline := str(character.get("discipline", "enforcer"))
+	session.discipline = discipline if Disciplines.is_valid(discipline) else "enforcer"
+	var way = character.get("way")
+	session.way_id = StringName(way) if way is String and Ways.get_way(StringName(way)) else Ways.DEFAULT
 	session.body = _spawn_body(display_name, Protocol.EntityKind.PRACTITIONER, -1)
 	session.progress.apply_to(session.body)
+	session.body.loadout = Ways.loadout(session.way_id)
 	session.arrived_at = spawn_name
 	session.body.respawn(Zones.spawn_point(zone_id, spawn_name), 0.0)
 	_sessions[peer_id] = session
 	_set_rank_info(session)
 
 	var body := session.body
-	_transport.send(peer_id, Protocol.encode_welcome(body.entity_id, body.global_position, body.facing, zone_id), true)
+	_transport.send(peer_id, Protocol.encode_welcome(body.entity_id, body.global_position, body.facing, zone_id,
+		session.way_id), true)
 	_send_progress(session)
 	for entity_id in _info:
 		if entity_id != body.entity_id:
@@ -486,12 +511,65 @@ func _reject(peer_id: int, reason: String) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
+# --- Admin and shutdown -------------------------------------------------------------
+
+func _process(_delta: float) -> void:
+	if not _admin.is_listening():
+		return
+	while _admin.is_connection_available():
+		_admin_peers.append(_admin.take_connection())
+	for peer in _admin_peers.duplicate():
+		peer.poll()
+		if peer.get_status() != StreamPeerTCP.STATUS_CONNECTED:
+			_admin_peers.erase(peer)
+		elif peer.get_available_bytes() > 0:
+			_admin_command(peer.get_utf8_string(peer.get_available_bytes()).strip_edges(), peer)
+
+
+func _admin_command(line: String, peer: StreamPeerTCP) -> void:
+	var command := line.get_slice(" ", 0)
+	match command:
+		"status":
+			var status := {"zone": String(zone_id), "world": world_id, "tick": _tick, "players": _sessions.size(),
+				"fighters": _entities.get_child_count(), "echoes": _echoes.count(), "shutting_down": _shutting_down}
+			peer.put_data((JSON.stringify(status) + "\n").to_utf8_buffer())
+		"shutdown":
+			peer.put_data("shutting down\n".to_utf8_buffer())
+			shutdown(line.trim_prefix("shutdown").strip_edges())
+		_:
+			peer.put_data(("unknown command '%s' (try: status, shutdown [reason])\n" % command).to_utf8_buffer())
+
+
+## Warns every player, saves them all (online: final save and mark offline), then quits.
+func shutdown(reason := "") -> void:
+	if _shutting_down:
+		return
+	_shutting_down = true
+	print("[server] Shutting down%s; saving %d players" % [": " + reason if reason else "", _sessions.size()])
+	_broadcast(Protocol.encode_notice("The server is shutting down%s. Your progress is saved." % (
+		" (%s)" % reason if reason else "")), true)
+	get_tree().create_timer(SHUTDOWN_TIMEOUT_SECONDS).timeout.connect(func():
+		push_warning("[server] Saving took too long; quitting anyway")
+		get_tree().quit())
+	if backend:
+		for session: ClientSession in _sessions.values():
+			if session.character_id >= 0:
+				var result := await backend.request_json(HTTPClient.METHOD_POST,
+					"/internal/characters/%d/left" % session.character_id, {"progress": session.progress.to_dict()})
+				if not result.ok:
+					push_warning("[server] Final save for %s failed: %s" % [session.display_name, result.error])
+	print("[server] All players saved")
+	get_tree().quit()
+
+
 # --- Zones -------------------------------------------------------------------------
 
 ## Walking into a portal sends the player to another zone's server. That goes through
 ## the backend (which saves the character and issues a ticket for the target zone), so
 ## portals only work online.
 func _check_portals() -> void:
+	if _shutting_down:
+		return
 	for session: ClientSession in _sessions.values():
 		if session.transferring or session.body.is_dead():
 			continue
