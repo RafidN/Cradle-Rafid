@@ -12,10 +12,16 @@ const DODGE := 1 << 3
 const BLOCK := 1 << 4
 ## Locked on to a target; the aim yaw is valid.
 const LOCKED := 1 << 5
+## Start cycling, or take a breath while cycling.
+const CYCLE := 1 << 6
+## Technique slots 1-4 are bits 7-10; see technique_button().
+const TECHNIQUE_1 := 1 << 7
+const TECHNIQUE_COUNT := 4
+const TECHNIQUE_MASK := ((1 << TECHNIQUE_COUNT) - 1) << 7
 
-## Bytes per input on the wire: u32 tick, s8 move x, s8 move y, u16 yaw, u8 buttons,
+## Bytes per input on the wire: u32 tick, s8 move x, s8 move y, u16 yaw, u16 buttons,
 ## u16 aim, u32 view tick, u8 view tick fraction.
-const ENCODED_SIZE := 16
+const ENCODED_SIZE := 17
 
 var tick := 0
 var buttons := 0
@@ -62,13 +68,25 @@ func is_pressed(button: int) -> bool:
 	return buttons & button != 0
 
 
+static func technique_button(slot: int) -> int:
+	return TECHNIQUE_1 << slot
+
+
+## Technique slot (0-3) for a single technique button bit, or -1.
+static func technique_slot(button: int) -> int:
+	for slot in TECHNIQUE_COUNT:
+		if button == technique_button(slot):
+			return slot
+	return -1
+
+
 func encode(buf: StreamPeerBuffer) -> void:
 	var view := maxf(view_tick, 0.0)
 	buf.put_u32(tick)
 	buf.put_8(_move_x)
 	buf.put_8(_move_y)
 	buf.put_u16(_yaw)
-	buf.put_u8(buttons)
+	buf.put_u16(buttons)
 	buf.put_u16(_aim)
 	buf.put_u32(floori(view))
 	buf.put_u8(floori(fmod(view, 1.0) * 256.0))
@@ -80,7 +98,7 @@ static func decode(buf: StreamPeerBuffer) -> PlayerInput:
 	input._move_x = clampi(buf.get_8(), -127, 127)
 	input._move_y = clampi(buf.get_8(), -127, 127)
 	input._yaw = buf.get_u16()
-	input.buttons = buf.get_u8()
+	input.buttons = buf.get_u16()
 	input._aim = buf.get_u16()
 	input.view_tick = buf.get_u32() + buf.get_u8() / 256.0
 	return input

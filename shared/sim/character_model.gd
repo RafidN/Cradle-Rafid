@@ -16,6 +16,9 @@ const BLOCK_POSE := Vector3(0.0, 1.35, 0.0)
 
 @export var color := Color(0.56, 0.82, 0.54)
 
+const ENFORCER_GLOW := Color(1.0, 0.45, 0.1)
+const EXHAUSTED_TINT := Color(0.45, 0.45, 0.5)
+
 var _material := StandardMaterial3D.new()
 
 @onready var _rig: Node3D = $Rig
@@ -29,7 +32,7 @@ func _ready() -> void:
 	$Rig/Body.material_override = _material
 
 
-func apply_pose(action: int, action_id: int, tick: float) -> void:
+func apply_pose(action: int, action_id: int, tick: float, flags := 0) -> void:
 	_rig.rotation = Vector3.ZERO
 	_rig.scale = Vector3.ONE
 	_weapon.rotation = REST
@@ -57,7 +60,45 @@ func apply_pose(action: int, action_id: int, tick: float) -> void:
 		PlayerBody.Action.DEAD:
 			_rig.rotation.x = PI * 0.5
 			tint = color.darkened(0.6)
+		PlayerBody.Action.CYCLE:
+			# Seated, breathing in time with the cycling beat.
+			var breath := absf(cos(PI * tick / PlayerBody.CYCLE_BEAT_TICKS))
+			_rig.scale = Vector3(1.0 + 0.06 * breath, 0.62 + 0.04 * breath, 1.0 + 0.06 * breath)
+			_weapon.rotation = Vector3(-1.4, 0.0, 0.0)
+		PlayerBody.Action.TECHNIQUE:
+			_pose_technique(action_id, tick)
+
+	if flags & PlayerBody.FLAG_EXHAUSTED:
+		tint = tint.lerp(EXHAUSTED_TINT, 0.7)
+		_rig.rotation.x += 0.25
 	_material.albedo_color = tint
+	_material.emission_enabled = flags & PlayerBody.FLAG_ENFORCER != 0
+	_material.emission = ENFORCER_GLOW
+	_material.emission_energy_multiplier = 0.8 + 0.3 * sin(Time.get_ticks_msec() * 0.01)
+
+
+## Wind up during startup, snap into a kind-specific release pose, then settle.
+func _pose_technique(technique_id: int, tick: float) -> void:
+	var technique := Techniques.get_technique(technique_id)
+	if technique == null:
+		return
+	var wind := clampf(tick / technique.startup, 0.0, 1.0)
+	var settle := clampf((tick - technique.startup) / technique.recovery, 0.0, 1.0)
+	var released := tick >= technique.startup
+	match technique.kind:
+		TechniqueData.Kind.ENFORCER:
+			_weapon.rotation = REST.lerp(Vector3(1.6, 0.0, 0.0), wind).lerp(REST, settle)
+			_rig.scale = Vector3.ONE * (1.0 + 0.12 * wind * (1.0 - settle))
+		TechniqueData.Kind.STRIKER:
+			_weapon.rotation = REST.lerp(Vector3(0.3, 0.0, 0.0), wind).lerp(REST, settle)
+			if released:
+				_weapon.position = _weapon_rest_position + Vector3(0.0, 0.0, -THRUST_DISTANCE * (1.0 - settle))
+		TechniqueData.Kind.RULER:
+			_rig.scale = Vector3(1.0, 1.0 - 0.3 * wind * (1.0 - settle), 1.0)
+			_weapon.rotation = REST.lerp(Vector3(1.8, 0.0, 0.0), wind).lerp(Vector3(-1.3, 0.0, 0.0), 1.0 if released else 0.0).lerp(REST, settle)
+		TechniqueData.Kind.FORGER:
+			_rig.rotation.x = -0.6 * wind * (1.0 - settle)
+			_weapon.rotation = REST.lerp(Vector3(-1.4, 0.0, 0.0), wind).lerp(REST, settle)
 
 
 func _pose_attack(action_id: int, tick: float) -> void:

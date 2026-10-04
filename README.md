@@ -18,10 +18,10 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 
 ### Madra and cycling
 - Each character has a **core** with a **capacity**, and a **madra pool** that refills by cycling.
-- **Cycling** is a skill-based channel: hold `cycle`, then match a breathing or pulse rhythm.
-  - Hitting the window cleanly increases the regen multiplier. Missing it breaks the flow.
-  - You can't cycle while taking damage.
-  - Cycling at aura-rich sites (contested areas in the world) gives a bonus.
+- **Cycling** is a skill-based channel: press `cycle` to sit, then press it again each time the breath peaks.
+  - Breathing on the beat builds flow, which multiplies regen. An off-beat breath breaks flow.
+  - Moving, acting or getting hit stops cycling.
+  - Cycling at aura-rich sites (contested areas in the world) gives a bonus. *(planned)*
 - **Paths** decide which aspect your madra has (for example fire, wind, blood or force), and with it your techniques and passives.
 
 ### Combat (action-based, server-authoritative)
@@ -105,6 +105,31 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
   - A dodge counts if it was active on either the rewound frame or the server's current frame, which favors the defender.
 - **Lock-on:** while locked, the camera tracks the target, the fighter strafes facing it, and attacks aim at it. Lock-on breaks beyond 26 m or when the target dies.
 
+### Madra and techniques implementation (M2)
+- **Madra** ranges from 0 to 100. It's stored in hundredths so it stays an integer and the client predicts it exactly.
+  - It regenerates slowly (0.3/s) by default, and not at all while blocking, exhausted, or with an Enforcer active.
+- **Cycling:** press **C** to sit. A breath peaks every 1.5 s; press **C** within ±4 ticks of the peak (when the ring glows gold) to gain a flow stack, up to 5.
+  - Regen is 1.2/s × (1 + flow), so up to 7.2/s at full flow.
+  - An off-beat breath resets flow to 0. A skipped peak costs one stack.
+- **Exhaustion:** a technique can cost more madra than you have. It still goes off, but the pool empties and you're **exhausted** for 2 s:
+  - half speed
+  - no dodge, block or cast
+  - no regen
+  - you take +25% damage
+- **Path of Kindled Flame** (working name). The four techniques are on keys **1–4**:
+
+  | Technique | Type | Cost | Effect |
+  |---|---|---|---|
+  | Flame Body | Enforcer | 10 | Toggle: +30% melee damage and +20% speed, but drains 1.5 madra/s. Running dry ends it and exhausts you. Turning it off is free. |
+  | Ember Lance | Striker | 15 | Projectile, 24 m/s, 22 m range, 12 damage. Can be blocked but not parried. |
+  | Searing Ring | Ruler | 25 | 4 m burst around you, 16 damage, strong knockback. Can't be blocked. |
+  | Cinder Trap | Forger | 20 | Placed in front of you. Arms after 0.5 s and lasts 15 s. Detonates under an enemy for 14 damage and a long hitstun. Max 2 per player. |
+
+- **Prediction and lag compensation:**
+  - Madra spending, cycling and Enforcer toggles are predicted on your client, and so are your own projectiles and burst visuals.
+  - Projectiles, bursts and traps exist on the server (`server/world/technique_effects.gd`).
+  - A projectile tests targets rewound by its caster's view delay for its whole flight. Bursts rewind like melee. Traps check where enemies are now, because the victim is the one walking into them.
+
 ## 3. Project layout
 
 ```
@@ -135,7 +160,7 @@ docs/     design notes
 | Block | Q | RB |
 | Lock-on (toggle) | Tab / MMB | R3 |
 | Techniques 1–4 | 1–4 | D-pad |
-| Cycle (hold) | C | LB |
+| Cycle / breathe | C | LB |
 | Interact / Pause | E / Esc | — / Start |
 
 ---
@@ -153,7 +178,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
 2. ✅ **M1: Combat core**
    - Attacks defined in data, hitboxes and hurtboxes, lag-compensated hits.
    - Health, dodge invulnerability, block and parry, death and respawn, lock-on.
-3. **M2: Madra and cycling**
+3. ✅ **M2: Madra and cycling**
    - Madra pool, the cycling minigame, and exhaustion.
    - The first Path with one technique of each type: Enforcer, Striker, Ruler, Forger.
 4. **M3: Remnants and advancement**

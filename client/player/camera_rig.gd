@@ -68,6 +68,11 @@ func sample_input() -> PlayerInput:
 		input.buttons |= PlayerInput.LIGHT
 	if Input.is_action_pressed("block"):
 		input.buttons |= PlayerInput.BLOCK
+	if Input.is_action_just_pressed("cycle"):
+		input.buttons |= PlayerInput.CYCLE
+	for slot in PlayerInput.TECHNIQUE_COUNT:
+		if Input.is_action_just_pressed("technique_%d" % (slot + 1)):
+			input.buttons |= PlayerInput.technique_button(slot)
 	return input
 
 

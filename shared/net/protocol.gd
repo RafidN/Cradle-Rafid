@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 2
+const VERSION := 3
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -11,11 +11,14 @@ const TICK_RATE := 30
 const INPUT_REDUNDANCY := 6
 const MAX_NAME_LENGTH := 16
 
-enum Msg { HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, PLAYER_JOINED, PLAYER_LEFT, HIT }
+enum Msg { HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, PLAYER_JOINED, PLAYER_LEFT, HIT, BURST }
+
+## Kinds of world effects (server-owned technique objects) sent in snapshots.
+enum Effect { PROJECTILE, TRAP }
 
 
 static func is_reliable(msg: int) -> bool:
-	return msg != Msg.INPUT and msg != Msg.SNAPSHOT and msg != Msg.HIT
+	return msg != Msg.INPUT and msg != Msg.SNAPSHOT and msg != Msg.HIT and msg != Msg.BURST
 
 
 # --- Client -> server ---------------------------------------------------------------
@@ -91,8 +94,8 @@ static func decode_reject(buf: StreamPeerBuffer) -> String:
 ## One snapshot per client per tick. The receiving client's own fighter is sent in full
 ## (everything PlayerBody.capture_state() holds) for reconciliation, with the tick of the
 ## last input the server applied for it. Everyone else is sent with just what's needed
-## to draw them.
-static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array) -> PackedByteArray:
+## to draw them, followed by world effects: {id, kind, owner, position, velocity, armed}.
+static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array, effects: Array) -> PackedByteArray:
 	var buf := _writer(Msg.SNAPSHOT)
 	buf.put_u32(tick)
 	buf.put_u32(ack_input_tick)
@@ -108,6 +111,15 @@ static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bod
 		buf.put_u8(body.action_id)
 		buf.put_u16(body.action_tick)
 		buf.put_u16(body.health)
+		buf.put_u8(body.visual_flags())
+	buf.put_u16(effects.size())
+	for effect: Dictionary in effects:
+		buf.put_u32(effect.id)
+		buf.put_u8(effect.kind)
+		buf.put_u32(effect.owner)
+		_put_vector3(buf, effect.position)
+		_put_vector3(buf, effect.velocity)
+		buf.put_u8(1 if effect.armed else 0)
 	return buf.data_array
 
 
@@ -128,6 +140,18 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 			"action_id": buf.get_u8(),
 			"action_tick": buf.get_u16(),
 			"health": buf.get_u16(),
+			"flags": buf.get_u8(),
+		})
+	snapshot.effects = []
+	var effect_count := buf.get_u16()
+	for i in effect_count:
+		snapshot.effects.append({
+			"id": buf.get_u32(),
+			"kind": buf.get_u8(),
+			"owner": buf.get_u32(),
+			"position": _get_vector3(buf),
+			"velocity": _get_vector3(buf),
+			"armed": buf.get_u8() != 0,
 		})
 	return snapshot
 
@@ -150,6 +174,19 @@ static func decode_hit(buf: StreamPeerBuffer) -> Dictionary:
 		"damage": buf.get_u16(),
 		"position": _get_vector3(buf),
 	}
+
+
+## A technique effect went off at a point: a Ruler burst, or a trap detonating.
+static func encode_burst(caster_id: int, technique_id: int, at: Vector3) -> PackedByteArray:
+	var buf := _writer(Msg.BURST)
+	buf.put_u32(caster_id)
+	buf.put_u8(technique_id)
+	_put_vector3(buf, at)
+	return buf.data_array
+
+
+static func decode_burst(buf: StreamPeerBuffer) -> Dictionary:
+	return {"caster": buf.get_u32(), "technique": buf.get_u8(), "position": _get_vector3(buf)}
 
 
 static func encode_player_joined(entity_id: int, display_name: String) -> PackedByteArray:
@@ -203,9 +240,14 @@ static func _put_body_state(buf: StreamPeerBuffer, state: Dictionary) -> void:
 	buf.put_u8(state.action_id)
 	buf.put_u16(state.action_tick)
 	buf.put_u16(state.action_length)
-	buf.put_u8(state.buffered)
+	buf.put_u16(state.buffered)
 	buf.put_u8(state.buffer_ticks)
 	buf.put_u8(state.dodge_cooldown)
+	buf.put_u16(state.madra)
+	buf.put_u8(state.flow)
+	buf.put_u16(state.cycle_beat)
+	buf.put_u8(state.exhaust_ticks)
+	buf.put_u8(1 if state.enforcer_active else 0)
 
 
 static func _get_body_state(buf: StreamPeerBuffer) -> Dictionary:
@@ -219,9 +261,14 @@ static func _get_body_state(buf: StreamPeerBuffer) -> Dictionary:
 		"action_id": buf.get_u8(),
 		"action_tick": buf.get_u16(),
 		"action_length": buf.get_u16(),
-		"buffered": buf.get_u8(),
+		"buffered": buf.get_u16(),
 		"buffer_ticks": buf.get_u8(),
 		"dodge_cooldown": buf.get_u8(),
+		"madra": buf.get_u16(),
+		"flow": buf.get_u8(),
+		"cycle_beat": buf.get_u16(),
+		"exhaust_ticks": buf.get_u8(),
+		"enforcer_active": buf.get_u8() != 0,
 	}
 
 

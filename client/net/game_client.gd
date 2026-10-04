@@ -50,6 +50,7 @@ var _server_time := -1.0  # Estimated tick of the newest snapshot, advanced ever
 var _remotes := {}  # entity_id -> RemotePlayer
 var _names := {}  # entity_id -> display name
 var _lock_target_id := -1
+var _bot_cycling := false
 var _display_name := ""
 var _closed := false
 
@@ -65,11 +66,8 @@ var _stats_timer := 0.0
 @onready var _transport: NetTransport = $NetTransport
 @onready var _world: Node3D = $World
 @onready var _entities: Node3D = $World/Entities
-@onready var _debug_label: Label = $HUD/Debug
-@onready var _hint_label: Label = $HUD/Hint
-@onready var _health_bar: ProgressBar = $HUD/HealthBar
-@onready var _target_label: Label = $HUD/TargetLabel
-@onready var _death_label: Label = $HUD/DeathLabel
+@onready var _effects: WorldEffects = $World/Effects
+@onready var _hud: CombatHud = $HUD
 
 
 func connect_to_server(host: String, port: int, display_name: String, conditioner: NetConditioner) -> Error:
@@ -84,8 +82,11 @@ func connect_to_server(host: String, port: int, display_name: String, conditione
 	multiplayer.connection_failed.connect(_close.bind("Could not reach %s:%d" % [host, port]))
 	multiplayer.server_disconnected.connect(_close.bind("Disconnected from server"))
 	_transport.packet_received.connect(_on_packet)
-	_debug_label.text = "Connecting to %s:%d..." % [host, port]
-	_hint_label.visible = not bot
+	_hud.debug_label.text = "Connecting to %s:%d..." % [host, port]
+	_hud.hint_label.visible = not bot
+	_effects.target_positions = func() -> Array:
+		return _remotes.values().filter(func(r: RemotePlayer): return not r.is_dead()).map(
+			func(r: RemotePlayer): return r.global_position)
 	return OK
 
 
@@ -120,6 +121,8 @@ func _on_packet(_peer_id: int, bytes: PackedByteArray) -> void:
 		_on_snapshot(Protocol.decode_snapshot(buf))
 	elif msg == Protocol.Msg.HIT:
 		_on_hit(Protocol.decode_hit(buf))
+	elif msg == Protocol.Msg.BURST:
+		_on_burst(Protocol.decode_burst(buf))
 	elif msg == Protocol.Msg.WELCOME:
 		_on_welcome(Protocol.decode_welcome(buf))
 	elif msg == Protocol.Msg.PLAYER_JOINED:
@@ -178,6 +181,7 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	for entity_id in _remotes.keys():
 		if not seen.has(entity_id):
 			_remove_remote(entity_id)
+	_effects.sync(snapshot.tick, snapshot.effects, _entity_id)
 
 
 func _on_hit(hit: Dictionary) -> void:
@@ -194,6 +198,15 @@ func _on_hit(hit: Dictionary) -> void:
 	FloatingText.spawn(_world, hit.position, text % hit.damage if text.contains("%d") else text, tint)
 
 
+func _on_burst(burst: Dictionary) -> void:
+	var technique := Techniques.get_technique(burst.technique)
+	if technique == null:
+		return
+	if burst.caster == _entity_id and technique.kind == TechniqueData.Kind.RULER:
+		return  # Already shown when our own cast released.
+	_effects.spawn_burst(burst.position, technique.radius)
+
+
 # --- Simulation ---------------------------------------------------------------------
 
 func _physics_process(delta: float) -> void:
@@ -208,6 +221,8 @@ func _physics_process(delta: float) -> void:
 	input.tick = _input_tick
 	input.view_tick = _server_time - INTERP_DELAY_TICKS
 	_body.simulate(input, delta)
+	if _body.released_technique >= 0:
+		_show_own_release(Techniques.get_technique(_body.released_technique))
 	_history.append({"tick": _input_tick, "input": input, "state": _body.capture_state()})
 	if _history.size() > MAX_HISTORY:
 		_history.pop_front()
@@ -247,6 +262,17 @@ func _reconcile(snapshot: Dictionary, delta: float) -> void:
 		entry.state = _body.capture_state()
 	if jump > 3.0:
 		_body.reset_physics_interpolation()  # Teleport (respawn); don't slide across the map.
+
+
+## Predicted visuals for our own technique, shown on the tick it releases. Only called
+## for fresh ticks, never during reconciliation replay.
+func _show_own_release(technique: TechniqueData) -> void:
+	match technique.kind:
+		TechniqueData.Kind.STRIKER:
+			var origin := _body.global_position + Vector3.UP * TechniqueEffects.PROJECTILE_HEIGHT + _body.forward() * 0.6
+			_effects.spawn_predicted_projectile(origin, _body.forward() * technique.speed, technique.max_range)
+		TechniqueData.Kind.RULER:
+			_effects.spawn_burst(_body.global_position, technique.radius)
 
 
 func _player_input() -> PlayerInput:
@@ -312,6 +338,7 @@ func _process(delta: float) -> void:
 		var render_tick := _server_time - INTERP_DELAY_TICKS
 		for remote: RemotePlayer in _remotes.values():
 			remote.render(render_tick)
+		_effects.render(render_tick)
 
 	if _body:
 		_update_lock()
@@ -323,13 +350,11 @@ func _process(delta: float) -> void:
 
 
 func _update_hud() -> void:
-	_debug_label.text = _stats_text()
-	_health_bar.value = _body.health
+	_hud.debug_label.text = _stats_text()
+	_hud.show_fighter(_body)
 	var target: RemotePlayer = _remotes.get(_lock_target_id)
-	_target_label.visible = target != null
-	if target:
-		_target_label.text = "%s  —  %d / %d" % [target.display_name, target.latest_state().get("health", 0), PlayerBody.MAX_HEALTH]
-	_death_label.visible = _body.is_dead()
+	_hud.show_target("%s  —  %d / %d" % [target.display_name, target.latest_state().get("health", 0),
+		PlayerBody.MAX_HEALTH] if target else "")
 
 
 func _stats_text() -> String:
@@ -337,7 +362,8 @@ func _stats_text() -> String:
 		"%s (entity %d)  |  %d fighters visible" % [_display_name, _entity_id, _remotes.size() + 1],
 		"Input RTT: %s" % ("%d ms" % _rtt_ms if _rtt_ms >= 0.0 else "-"),
 		"Unacked inputs: %d  |  Corrections: %d" % [_history.size(), _corrections],
-		"HP: %d  |  Hits landed: %d  |  Hits taken: %d" % [_body.health if _body else 0, _hits_landed, _hits_taken],
+		"HP: %d  |  Madra: %d  |  Hits landed: %d  |  Hits taken: %d" % [_body.health if _body else 0,
+			_body.madra / PlayerBody.MADRA_SCALE if _body else 0, _hits_landed, _hits_taken],
 		"Snapshots: %d" % _snapshots,
 	])
 	if _transport.conditioner:
@@ -347,11 +373,25 @@ func _stats_text() -> String:
 
 # --- Bot ----------------------------------------------------------------------------
 
-## Chases the nearest living fighter and cycles through light combos, heavies, blocks
-## and dodges, so headless runs exercise every part of combat.
+## Chases the nearest living fighter and cycles through light combos, heavies, blocks,
+## dodges and all four techniques, and sits down to cycle (breathing on the beat) when
+## its madra runs low, so headless runs exercise every system.
 func _bot_input() -> PlayerInput:
 	var input := PlayerInput.new()
 	var target := _nearest_remote(BOT_AGGRO_RANGE)
+	var distance := target.global_position.distance_to(_body.global_position) if target else INF
+
+	if _body.madra < PlayerBody.MAX_MADRA * 0.2 and not _body.is_exhausted():
+		_bot_cycling = true
+	elif _body.madra > PlayerBody.MAX_MADRA * 0.8:
+		_bot_cycling = false
+	if _bot_cycling and distance > 3.0:
+		if _body.action != PlayerBody.Action.CYCLE:
+			input.buttons |= PlayerInput.CYCLE
+		elif _body.action_tick % PlayerBody.CYCLE_BEAT_TICKS == 0:
+			input.buttons |= PlayerInput.CYCLE  # Breathe exactly on the beat.
+		return input
+
 	if target == null:
 		var t := _input_tick / float(Protocol.TICK_RATE) + _entity_id * 1.7
 		input.set_move(Vector2(sin(t * 0.7), cos(t * 0.7)))
@@ -361,19 +401,26 @@ func _bot_input() -> PlayerInput:
 	input.set_yaw(yaw)
 	input.set_aim(yaw)
 	input.buttons |= PlayerInput.LOCKED
-	var distance := target.global_position.distance_to(_body.global_position)
+	var phase := (_input_tick + _entity_id * 23) % 150
 	if distance > BOT_ATTACK_RANGE - 0.6:
 		input.set_move(Vector2(0.0, -1.0))
+	if distance > 5.0 and distance < 18.0 and phase % 50 == 0:
+		input.buttons |= PlayerInput.technique_button(Techniques.EMBER_LANCE)
 	if distance <= BOT_ATTACK_RANGE:
-		var phase := (_input_tick + _entity_id * 23) % 120
 		if phase < 45 and phase % 6 == 0:
 			input.buttons |= PlayerInput.LIGHT
 		elif phase == 60:
 			input.buttons |= PlayerInput.HEAVY
+		elif phase == 75:
+			input.buttons |= PlayerInput.technique_button(Techniques.SEARING_RING)
 		elif phase >= 85 and phase < 105:
 			input.buttons |= PlayerInput.BLOCK
 		elif phase == 110:
 			input.buttons |= PlayerInput.DODGE
+		elif phase == 120:
+			input.buttons |= PlayerInput.technique_button(Techniques.CINDER_TRAP)
+		elif phase == 135 and not _body.enforcer_active:
+			input.buttons |= PlayerInput.technique_button(Techniques.FLAME_BODY)
 	return input
 
 

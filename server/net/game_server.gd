@@ -45,6 +45,7 @@ var _sessions := {}  # peer_id -> ClientSession
 var _dummies: Array[Dummy] = []
 var _names := {}  # entity_id -> display name, for every fighter
 var _hit_history := HitHistory.new()
+var _effects := TechniqueEffects.new()
 var _tick := 0
 var _next_entity_id := 1
 var _port := 0
@@ -64,6 +65,11 @@ func start(port: int) -> Error:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_transport.packet_received.connect(_on_packet)
 	_port = port
+	_effects.hit_history = _hit_history
+	_effects.max_rewind_ticks = MAX_REWIND_TICKS
+	_effects.land_hit = _land_hit
+	_effects.burst = func(caster_id: int, technique_id: int, at: Vector3) -> void:
+		_broadcast(Protocol.encode_burst(caster_id, technique_id, at), false)
 	_spawn_dummies()
 	print("[server] Listening on UDP port %d (protocol v%d, %d Hz)" % [port, Protocol.VERSION, Protocol.TICK_RATE])
 	return OK
@@ -79,8 +85,12 @@ func _physics_process(delta: float) -> void:
 			session.last_processed_tick = input.tick
 			session.input_credit -= 1.0
 			_resolve_attack(session.body, input.view_tick)
+			if session.body.released_technique >= 0:
+				_effects.release(session.body, session.body.released_technique, _tick, input.view_tick,
+					_entities.get_children())
 	for dummy in _dummies:
 		dummy.body.simulate(dummy.input, delta)
+	_effects.update(_tick, _entities.get_children(), _entities.get_world_3d().direct_space_state)
 
 	for body: PlayerBody in _entities.get_children():
 		var dead_long_enough := body.is_dead() and body.action_tick >= PlayerBody.RESPAWN_TICKS
@@ -112,20 +122,29 @@ func _resolve_attack(attacker: PlayerBody, view_tick: float) -> void:
 		if target.is_invulnerable() or past.get("invulnerable", false):
 			continue
 		attacker.hit_targets[target.entity_id] = true
-		var outcome := Combat.resolve(attacker, target, attack)
-		var at := target.global_position + Vector3.UP * 1.6
-		_broadcast(Protocol.encode_hit(attacker.entity_id, target.entity_id, outcome[0], outcome[1], at), false)
-		if log_hits:
-			print("[server] %s -> %s: %s %d (rewound %.1f ticks)" % [_names[attacker.entity_id],
-				_names[target.entity_id], Combat.Result.keys()[outcome[0]], outcome[1], _tick - rewind_to])
-		if target.is_dead():
-			print("[server] %s defeated %s" % [_names[attacker.entity_id], _names[target.entity_id]])
+		_land_hit(attacker, target, Combat.melee_spec(attacker, attack), attacker.global_position, -1)
+
+
+## Resolves a landed hit, tells every client, and logs it. technique_id is -1 for melee.
+func _land_hit(attacker: PlayerBody, target: PlayerBody, spec: HitSpec, origin: Vector3, technique_id: int) -> void:
+	var outcome := Combat.resolve(attacker, target, spec, origin)
+	var attacker_id := attacker.entity_id if attacker else 0
+	var at := target.global_position + Vector3.UP * 1.6
+	_broadcast(Protocol.encode_hit(attacker_id, target.entity_id, outcome[0], outcome[1], at), false)
+	var attacker_name: String = _names.get(attacker_id, "?")
+	if log_hits:
+		var source := "melee" if technique_id < 0 else Techniques.get_technique(technique_id).display_name
+		print("[server] %s -> %s: %s %d (%s)" % [attacker_name, _names[target.entity_id],
+			Combat.Result.keys()[outcome[0]], outcome[1], source])
+	if target.is_dead():
+		print("[server] %s defeated %s" % [attacker_name, _names[target.entity_id]])
 
 
 func _send_snapshots() -> void:
 	var bodies := _entities.get_children()
+	var effects := _effects.snapshot_entries()
 	for session: ClientSession in _sessions.values():
-		var bytes := Protocol.encode_snapshot(_tick, session.last_processed_tick, session.body, bodies)
+		var bytes := Protocol.encode_snapshot(_tick, session.last_processed_tick, session.body, bodies, effects)
 		_transport.send(session.peer_id, bytes, false)
 
 
@@ -191,6 +210,7 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_sessions.erase(peer_id)
 	var entity_id := session.body.entity_id
 	_names.erase(entity_id)
+	_effects.remove_owned_by(entity_id)
 	_entities.remove_child(session.body)
 	session.body.queue_free()
 	_broadcast(Protocol.encode_player_left(entity_id), true)

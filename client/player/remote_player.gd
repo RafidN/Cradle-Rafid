@@ -76,7 +76,7 @@ func render(render_tick: float) -> void:
 	var action_tick: float = from.action_tick
 	if to.action == from.action and to.action_id == from.action_id:
 		action_tick = lerpf(from.action_tick, to.action_tick, weight)
-	_model.apply_pose(from.action, from.action_id, action_tick)
+	_model.apply_pose(from.action, from.action_id, action_tick, from.flags)
 	_update_health_bar(from.health)
 
 
