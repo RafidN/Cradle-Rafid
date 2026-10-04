@@ -13,6 +13,8 @@ extends Node
 ## that time as its view tick so the server can rewind hit checks to match.
 
 signal disconnected(reason: String)
+## The server is sending us to another zone's server.
+signal transfer_requested(host: String, port: int, ticket: String, zone_id: String)
 
 const PLAYER_SCENE := preload("res://shared/sim/player_body.tscn")
 const CAMERA_RIG_SCENE := preload("res://client/player/camera_rig.tscn")
@@ -20,6 +22,10 @@ const REMOTE_PLAYER_SCENE := preload("res://client/player/remote_player.tscn")
 
 ## How far behind the newest snapshot remote fighters are drawn (3 ticks = 100 ms).
 const INTERP_DELAY_TICKS := 3.0
+## A remote fighter missing from snapshots this long has left our view. (Far fighters
+## only appear in every third snapshot, so absence from one doesn't mean gone.)
+const REMOTE_EXPIRY_TICKS := 15
+const PORTAL_COLOR := Color(0.55, 0.8, 1.0)
 ## Unacknowledged inputs kept for replay (2 s at 30 Hz).
 const MAX_HISTORY := 60
 const LOCK_RANGE := 20.0
@@ -39,6 +45,8 @@ const RESULT_TEXT := {
 
 ## Generate inputs automatically instead of reading devices (bots and load tests).
 var bot := false
+## Bots only: head for a portal a few seconds after arriving (tests zone transfers).
+var bot_travel := false
 
 var _entity_id := 0
 var _input_tick := 0
@@ -54,6 +62,7 @@ var _info := {}  # entity_id -> ENTITY_INFO dictionary
 var _progress := ProgressState.new()
 var _claim := 0.0
 var _lock_target_id := -1
+var _zone_id := Zones.DEFAULT
 var _bot_cycling := false
 var _bot_request_cooldown := 0
 var _display_name := ""
@@ -181,11 +190,18 @@ func _on_packet(_peer_id: int, bytes: PackedByteArray) -> void:
 			print("[client %s] %s" % [_display_name, text])
 	elif msg == Protocol.Msg.REJECT:
 		_close(Protocol.decode_reject(buf))
+	elif msg == Protocol.Msg.TRANSFER:
+		var transfer := Protocol.decode_transfer(buf)
+		if not transfer.is_empty() and not _closed:
+			_closed = true  # Leaving this server on purpose; don't report a disconnect.
+			transfer_requested.emit(transfer.host, transfer.port, transfer.ticket, transfer.zone)
 
 
 func _on_welcome(welcome: Dictionary) -> void:
 	if _body:
 		return
+	_load_zone(welcome.zone)
+	_zone_id = welcome.zone
 	_entity_id = welcome.entity_id
 	_body = PLAYER_SCENE.instantiate()
 	_body.entity_id = _entity_id
@@ -202,6 +218,33 @@ func _on_welcome(welcome: Dictionary) -> void:
 	_camera_rig.rotation.y = welcome.facing
 
 
+## Loads the zone's map and draws its portals.
+func _load_zone(zone_id: String) -> void:
+	var zone := Zones.get_zone(zone_id)
+	if zone.is_empty():
+		zone = Zones.get_zone(Zones.DEFAULT)
+	_world.add_child(load(zone.scene).instantiate())
+	for portal: Dictionary in zone.portals:
+		var ring := MeshInstance3D.new()
+		var mesh := TorusMesh.new()
+		mesh.inner_radius = portal.radius - 0.25
+		mesh.outer_radius = portal.radius
+		mesh.material = WorldEffects._glow_material(PORTAL_COLOR)
+		ring.mesh = mesh
+		ring.rotation.x = PI * 0.5
+		ring.position = portal.position + Vector3.UP * (portal.radius + 0.1)
+		_world.add_child(ring)
+		var label := Label3D.new()
+		label.text = "To %s" % Zones.display_name(portal.to_zone)
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.font_size = 48
+		label.outline_size = 10
+		label.pixel_size = 0.01
+		label.position = portal.position + Vector3.UP * (portal.radius * 2.0 + 0.8)
+		_world.add_child(label)
+	_hud.notify(zone.name)
+
+
 func _on_snapshot(snapshot: Dictionary) -> void:
 	if snapshot.tick <= _newest_snapshot_tick:
 		return  # Late or duplicate; a newer one already arrived.
@@ -215,18 +258,17 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 	else:
 		_server_time = lerpf(_server_time, snapshot.tick, 0.1)
 
-	var seen := {}
 	for other: Dictionary in snapshot.others:
-		seen[other.id] = true
 		var remote: RemotePlayer = _remotes.get(other.id)
 		if remote == null:
 			remote = REMOTE_PLAYER_SCENE.instantiate()
 			_entities.add_child(remote)
-			remote.configure(_info.get(other.id, {"name": "...", "kind": Protocol.EntityKind.ARTIST, "species": 0, "rank": 0}))
+			remote.configure(_info.get(other.id, {"name": "...", "kind": Protocol.EntityKind.ARTIST, "species": 0,
+				"rank": 0, "max_health": PlayerBody.MAX_HEALTH}))
 			_remotes[other.id] = remote
 		remote.push_state(snapshot.tick, other)
 	for entity_id in _remotes.keys():
-		if not seen.has(entity_id):
+		if snapshot.tick - _remotes[entity_id].last_seen_tick > REMOTE_EXPIRY_TICKS:
 			_remove_remote(entity_id)
 	_effects.sync(snapshot.tick, snapshot.effects, _entity_id)
 
@@ -401,7 +443,7 @@ func _update_hud() -> void:
 	_hud.show_fighter(_body)
 	var target: RemotePlayer = _remotes.get(_lock_target_id)
 	var state := target.latest_state() if target else {}
-	_hud.show_target("%s  —  %d / %d" % [target.display_name, state.get("health", 0), state.get("max_health", 0)] if target else "")
+	_hud.show_target("%s  —  %d / %d" % [target.display_name, state.get("health", 0), target.max_health] if target else "")
 	var near_remnant := _body.action == PlayerBody.Action.NONE \
 		and not _effects.nearest_remnant(_body.global_position, RemnantField.CLAIM_RADIUS, _entity_id).is_empty()
 	_hud.show_claim(_claim, near_remnant)
@@ -431,6 +473,12 @@ func _stats_text() -> String:
 ## its madra runs low, so headless runs exercise every system.
 func _bot_input() -> PlayerInput:
 	var input := PlayerInput.new()
+	var portals: Array = Zones.get_zone(_zone_id).get("portals", [])
+	if bot_travel and _input_tick > 4 * Protocol.TICK_RATE and not portals.is_empty():
+		var offset: Vector3 = portals[0].position - _body.global_position
+		input.set_yaw(atan2(-offset.x, -offset.z))
+		input.set_move(Vector2(0.0, -1.0))
+		return input
 	var target := _nearest_remote(BOT_HUNT_RANGE, Protocol.EntityKind.BEAST)
 	if target == null:
 		target = _nearest_remote(BOT_AGGRO_RANGE)

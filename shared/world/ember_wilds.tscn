@@ -1,0 +1,833 @@
+[gd_scene load_steps=10 format=3]
+
+[sub_resource type="ProceduralSkyMaterial" id="sky"]
+sky_top_color = Color(0.36, 0.22, 0.2, 1)
+sky_horizon_color = Color(0.85, 0.55, 0.4, 1)
+ground_horizon_color = Color(0.85, 0.55, 0.4, 1)
+
+[sub_resource type="Sky" id="sky_res"]
+sky_material = SubResource("sky")
+
+[sub_resource type="Environment" id="env"]
+background_mode = 2
+sky = SubResource("sky_res")
+tonemap_mode = 2
+ssao_enabled = true
+glow_enabled = true
+fog_enabled = true
+fog_light_color = Color(0.75, 0.5, 0.38, 1)
+fog_density = 0.008
+
+[sub_resource type="StandardMaterial3D" id="ground"]
+albedo_color = Color(0.33, 0.24, 0.2, 1)
+
+[sub_resource type="StandardMaterial3D" id="rock"]
+albedo_color = Color(0.42, 0.34, 0.3, 1)
+
+[sub_resource type="StandardMaterial3D" id="ash"]
+albedo_color = Color(0.25, 0.22, 0.22, 1)
+
+[sub_resource type="StandardMaterial3D" id="bark"]
+albedo_color = Color(0.3, 0.22, 0.16, 1)
+
+[sub_resource type="StandardMaterial3D" id="leaf"]
+albedo_color = Color(0.78, 0.35, 0.15, 1)
+
+[sub_resource type="StandardMaterial3D" id="wall"]
+albedo_color = Color(0.2, 0.17, 0.16, 1)
+
+[node name="EmberWilds" type="Node3D"]
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 20, 0)
+light_color = Color(1, 0.85, 0.7, 1)
+shadow_enabled = true
+
+[node name="Floor" type="CSGBox3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 0.000, -0.500, 0.000)
+use_collision = true
+size = Vector3(160, 1, 160)
+material = SubResource("ground")
+
+[node name="WallN" type="CSGBox3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 0.000, 2.000, -80.500)
+use_collision = true
+size = Vector3(162, 4, 1)
+material = SubResource("wall")
+
+[node name="WallS" type="CSGBox3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 0.000, 2.000, 80.500)
+use_collision = true
+size = Vector3(162, 4, 1)
+material = SubResource("wall")
+
+[node name="WallE" type="CSGBox3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 80.500, 2.000, 0.000)
+use_collision = true
+size = Vector3(1, 4, 160)
+material = SubResource("wall")
+
+[node name="WallW" type="CSGBox3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -80.500, 2.000, 0.000)
+use_collision = true
+size = Vector3(1, 4, 160)
+material = SubResource("wall")
+
+[node name="Rock0" type="CSGBox3D" parent="."]
+transform = Transform3D(0.40954, -0.09659, 0.90716, 0.00000, 0.99438, 0.10588, -0.91229, -0.04336, 0.40724, -26.425, 0.427, -52.373)
+use_collision = true
+size = Vector3(3.78, 1.25, 3.38)
+material = SubResource("rock")
+
+[node name="Rock1" type="CSGBox3D" parent="."]
+transform = Transform3D(0.23491, 0.07617, 0.96903, 0.00000, 0.99692, -0.07836, -0.97202, 0.01841, 0.23419, 1.115, 0.422, -69.376)
+use_collision = true
+size = Vector3(3.02, 1.24, 1.82)
+material = SubResource("rock")
+
+[node name="Rock2" type="CSGBox3D" parent="."]
+transform = Transform3D(0.31892, 0.10810, 0.94160, 0.00000, 0.99347, -0.11405, -0.94778, 0.03637, 0.31684, -56.430, 1.958, -41.514)
+use_collision = true
+size = Vector3(3.70, 4.32, 3.52)
+material = SubResource("rock")
+
+[node name="Rock3" type="CSGBox3D" parent="."]
+transform = Transform3D(0.56602, 0.06249, 0.82202, 0.00000, 0.99712, -0.07580, -0.82439, 0.04290, 0.56439, -68.013, 0.552, 53.770)
+use_collision = true
+size = Vector3(2.51, 1.50, 1.91)
+material = SubResource("rock")
+
+[node name="Rock4" type="CSGBox3D" parent="."]
+transform = Transform3D(0.98061, -0.02068, 0.19489, 0.00000, 0.99442, 0.10550, -0.19598, -0.10345, 0.97514, -47.891, 0.952, 12.240)
+use_collision = true
+size = Vector3(3.74, 2.30, 3.42)
+material = SubResource("rock")
+
+[node name="Rock5" type="CSGBox3D" parent="."]
+transform = Transform3D(0.14655, -0.04752, 0.98806, 0.00000, 0.99885, 0.04804, -0.98920, -0.00704, 0.14638, -44.106, 0.850, 27.060)
+use_collision = true
+size = Vector3(3.00, 2.10, 3.55)
+material = SubResource("rock")
+
+[node name="Rock6" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.92404, 0.02104, 0.38170, 0.00000, 0.99848, -0.05504, -0.38228, -0.05086, -0.92264, 44.157, 1.305, 29.849)
+use_collision = true
+size = Vector3(2.35, 3.01, 3.34)
+material = SubResource("rock")
+
+[node name="Rock7" type="CSGBox3D" parent="."]
+transform = Transform3D(0.88816, -0.00122, 0.45954, 0.00000, 1.00000, 0.00265, -0.45954, -0.00235, 0.88816, -31.809, 1.032, 72.026)
+use_collision = true
+size = Vector3(1.91, 2.46, 4.15)
+material = SubResource("rock")
+
+[node name="Rock8" type="CSGBox3D" parent="."]
+transform = Transform3D(0.55231, 0.03906, 0.83273, 0.00000, 0.99890, -0.04685, -0.83364, 0.02588, 0.55170, -69.119, 1.303, 25.232)
+use_collision = true
+size = Vector3(4.18, 3.01, 4.56)
+material = SubResource("rock")
+
+[node name="Rock9" type="CSGBox3D" parent="."]
+transform = Transform3D(0.98189, 0.00916, 0.18923, 0.00000, 0.99883, -0.04834, -0.18945, 0.04746, 0.98074, -6.569, 1.130, 50.995)
+use_collision = true
+size = Vector3(4.81, 2.66, 3.82)
+material = SubResource("rock")
+
+[node name="Rock10" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.50539, -0.09866, 0.85723, 0.00000, 0.99344, 0.11433, -0.86289, 0.05778, -0.50208, 22.069, 0.798, 73.964)
+use_collision = true
+size = Vector3(4.38, 2.00, 2.85)
+material = SubResource("rock")
+
+[node name="Rock11" type="CSGBox3D" parent="."]
+transform = Transform3D(0.91858, -0.02393, 0.39452, 0.00000, 0.99817, 0.06054, -0.39524, -0.05561, 0.91689, -5.746, 0.403, -49.793)
+use_collision = true
+size = Vector3(1.91, 1.21, 4.19)
+material = SubResource("rock")
+
+[node name="Rock12" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.93364, 0.02742, 0.35717, 0.00000, 0.99707, -0.07655, -0.35822, -0.07147, -0.93090, -16.358, 1.086, 55.713)
+use_collision = true
+size = Vector3(1.78, 2.57, 3.42)
+material = SubResource("rock")
+
+[node name="Rock13" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.99120, -0.01108, 0.13194, 0.00000, 0.99649, 0.08368, -0.13240, 0.08294, -0.98772, 54.598, 0.928, -33.237)
+use_collision = true
+size = Vector3(2.95, 2.26, 4.59)
+material = SubResource("rock")
+
+[node name="Rock14" type="CSGBox3D" parent="."]
+transform = Transform3D(0.67823, -0.08725, 0.72965, 0.00000, 0.99293, 0.11874, -0.73485, -0.08053, 0.67343, -48.567, 1.149, -40.206)
+use_collision = true
+size = Vector3(2.32, 2.70, 3.56)
+material = SubResource("rock")
+
+[node name="Rock15" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.04865, 0.02819, 0.99842, 0.00000, 0.99960, -0.02822, -0.99882, -0.00137, -0.04863, -12.158, 1.968, -19.612)
+use_collision = true
+size = Vector3(3.48, 4.34, 3.92)
+material = SubResource("rock")
+
+[node name="Rock16" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.80507, -0.01532, 0.59298, 0.00000, 0.99967, 0.02583, -0.59318, 0.02079, -0.80480, 26.430, 1.665, -66.901)
+use_collision = true
+size = Vector3(4.65, 3.73, 4.56)
+material = SubResource("rock")
+
+[node name="Rock17" type="CSGBox3D" parent="."]
+transform = Transform3D(0.79253, -0.04937, 0.60783, 0.00000, 0.99672, 0.08096, -0.60983, -0.06416, 0.78993, -15.153, 0.409, -59.469)
+use_collision = true
+size = Vector3(3.72, 1.22, 1.74)
+material = SubResource("rock")
+
+[node name="Rock18" type="CSGBox3D" parent="."]
+transform = Transform3D(0.41549, -0.10336, 0.90371, 0.00000, 0.99352, 0.11363, -0.90960, -0.04721, 0.41280, -23.992, 0.565, -67.114)
+use_collision = true
+size = Vector3(1.50, 1.53, 1.86)
+material = SubResource("rock")
+
+[node name="Rock19" type="CSGBox3D" parent="."]
+transform = Transform3D(0.41391, -0.08229, 0.90659, 0.00000, 0.99591, 0.09039, -0.91032, -0.03741, 0.41221, 56.150, 0.741, 17.110)
+use_collision = true
+size = Vector3(2.02, 1.88, 2.72)
+material = SubResource("rock")
+
+[node name="Rock20" type="CSGBox3D" parent="."]
+transform = Transform3D(0.94891, -0.01191, 0.31532, 0.00000, 0.99929, 0.03776, -0.31555, -0.03583, 0.94823, 52.341, 1.147, 73.965)
+use_collision = true
+size = Vector3(3.13, 2.69, 1.80)
+material = SubResource("rock")
+
+[node name="Rock21" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.08866, -0.08438, 0.99248, 0.00000, 0.99641, 0.08471, -0.99606, 0.00751, -0.08834, -35.286, 0.340, 49.328)
+use_collision = true
+size = Vector3(2.07, 1.08, 4.83)
+material = SubResource("rock")
+
+[node name="Rock22" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.57808, -0.04676, 0.81464, 0.00000, 0.99836, 0.05730, -0.81598, 0.03312, -0.57713, 6.476, 2.012, -70.944)
+use_collision = true
+size = Vector3(3.35, 4.42, 4.52)
+material = SubResource("rock")
+
+[node name="Rock23" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.82974, 0.06481, 0.55437, 0.00000, 0.99324, -0.11612, -0.55815, -0.09635, -0.82413, 40.791, 0.877, 4.889)
+use_collision = true
+size = Vector3(4.23, 2.15, 2.28)
+material = SubResource("rock")
+
+[node name="Rock24" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.05539, -0.03460, 0.99787, 0.00000, 0.99940, 0.03466, -0.99847, 0.00192, -0.05535, 52.894, 1.595, 45.912)
+use_collision = true
+size = Vector3(4.36, 3.59, 2.29)
+material = SubResource("rock")
+
+[node name="Rock25" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.99068, -0.00172, 0.13618, 0.00000, 0.99992, 0.01267, -0.13619, 0.01255, -0.99060, -70.653, 0.754, -70.809)
+use_collision = true
+size = Vector3(2.48, 1.91, 3.92)
+material = SubResource("rock")
+
+[node name="Rock26" type="CSGBox3D" parent="."]
+transform = Transform3D(0.75663, -0.04755, 0.65212, 0.00000, 0.99735, 0.07273, -0.65385, -0.05503, 0.75462, 65.553, 0.938, 73.206)
+use_collision = true
+size = Vector3(4.84, 2.28, 2.27)
+material = SubResource("rock")
+
+[node name="Rock27" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.46231, 0.06371, 0.88443, 0.00000, 0.99742, -0.07185, -0.88672, -0.03322, -0.46111, -44.344, 1.771, 18.610)
+use_collision = true
+size = Vector3(4.65, 3.94, 3.18)
+material = SubResource("rock")
+
+[node name="Rock28" type="CSGBox3D" parent="."]
+transform = Transform3D(0.06896, -0.07689, 0.99465, 0.00000, 0.99703, 0.07708, -0.99762, -0.00532, 0.06875, -62.283, 1.669, 24.088)
+use_collision = true
+size = Vector3(4.68, 3.74, 4.13)
+material = SubResource("rock")
+
+[node name="Rock29" type="CSGBox3D" parent="."]
+transform = Transform3D(0.30487, 0.10193, 0.94692, 0.00000, 0.99426, -0.10703, -0.95239, 0.03263, 0.30312, 43.370, 2.000, -25.122)
+use_collision = true
+size = Vector3(4.30, 4.40, 2.89)
+material = SubResource("rock")
+
+[node name="Rock30" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.82085, -0.04844, 0.56908, 0.00000, 0.99640, 0.08482, -0.57114, 0.06962, -0.81790, 33.720, 0.565, -49.499)
+use_collision = true
+size = Vector3(1.94, 1.53, 4.67)
+material = SubResource("rock")
+
+[node name="Rock31" type="CSGBox3D" parent="."]
+transform = Transform3D(0.91652, -0.04653, 0.39727, 0.00000, 0.99321, 0.11632, -0.39998, -0.10661, 0.91030, 48.977, 0.913, 72.046)
+use_collision = true
+size = Vector3(3.80, 2.23, 3.42)
+material = SubResource("rock")
+
+[node name="Rock32" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.91992, 0.03066, 0.39092, 0.00000, 0.99694, -0.07820, -0.39212, -0.07193, -0.91710, 70.634, 1.934, 22.451)
+use_collision = true
+size = Vector3(3.34, 4.27, 3.02)
+material = SubResource("rock")
+
+[node name="Rock33" type="CSGBox3D" parent="."]
+transform = Transform3D(0.68600, -0.01414, 0.72746, 0.00000, 0.99981, 0.01944, -0.72760, -0.01333, 0.68587, -43.344, 0.721, -37.225)
+use_collision = true
+size = Vector3(2.53, 1.84, 3.55)
+material = SubResource("rock")
+
+[node name="Rock34" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.95514, -0.00564, 0.29610, 0.00000, 0.99982, 0.01905, -0.29615, 0.01819, -0.95497, -55.339, 1.102, 61.503)
+use_collision = true
+size = Vector3(2.74, 2.60, 3.54)
+material = SubResource("rock")
+
+[node name="Rock35" type="CSGBox3D" parent="."]
+transform = Transform3D(0.18700, -0.07464, 0.97952, 0.00000, 0.99711, 0.07598, -0.98236, -0.01421, 0.18646, 62.658, 1.216, 0.247)
+use_collision = true
+size = Vector3(3.36, 2.83, 1.57)
+material = SubResource("rock")
+
+[node name="Rock36" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.17649, -0.04110, 0.98344, 0.00000, 0.99913, 0.04175, -0.98430, 0.00737, -0.17634, -74.410, 1.129, 44.876)
+use_collision = true
+size = Vector3(2.10, 2.66, 4.04)
+material = SubResource("rock")
+
+[node name="Rock37" type="CSGBox3D" parent="."]
+transform = Transform3D(0.71044, -0.03766, 0.70275, 0.00000, 0.99857, 0.05351, -0.70375, -0.03802, 0.70943, 2.752, 0.486, 8.316)
+use_collision = true
+size = Vector3(4.24, 1.37, 3.46)
+material = SubResource("rock")
+
+[node name="Rock38" type="CSGBox3D" parent="."]
+transform = Transform3D(0.17735, 0.02658, 0.98379, 0.00000, 0.99964, -0.02700, -0.98415, 0.00479, 0.17728, 40.839, 1.630, 1.157)
+use_collision = true
+size = Vector3(3.47, 3.66, 4.69)
+material = SubResource("rock")
+
+[node name="Rock39" type="CSGBox3D" parent="."]
+transform = Transform3D(0.06895, 0.10551, 0.99203, 0.00000, 0.99439, -0.10576, -0.99762, 0.00729, 0.06856, 0.833, 1.092, 1.824)
+use_collision = true
+size = Vector3(3.92, 2.58, 3.37)
+material = SubResource("rock")
+
+[node name="Rock40" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.98416, 0.01445, 0.17670, 0.00000, 0.99667, -0.08151, -0.17729, -0.08022, -0.98088, 29.883, 0.754, 56.480)
+use_collision = true
+size = Vector3(4.80, 1.91, 3.46)
+material = SubResource("rock")
+
+[node name="Rock41" type="CSGBox3D" parent="."]
+transform = Transform3D(0.97373, 0.00926, 0.22751, 0.00000, 0.99917, -0.04066, -0.22770, 0.03959, 0.97293, -54.430, 0.427, -56.757)
+use_collision = true
+size = Vector3(3.05, 1.25, 2.34)
+material = SubResource("rock")
+
+[node name="Rock42" type="CSGBox3D" parent="."]
+transform = Transform3D(0.90080, 0.03984, 0.43240, 0.00000, 0.99578, -0.09175, -0.43423, 0.08265, 0.89700, 42.590, 1.553, 59.554)
+use_collision = true
+size = Vector3(2.04, 3.51, 3.81)
+material = SubResource("rock")
+
+[node name="Rock43" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.99949, 0.00254, 0.03171, 0.00000, 0.99682, -0.07970, -0.03181, -0.07966, -0.99631, 70.132, 0.997, -42.062)
+use_collision = true
+size = Vector3(4.83, 2.39, 3.21)
+material = SubResource("rock")
+
+[node name="Rock44" type="CSGBox3D" parent="."]
+transform = Transform3D(0.18597, -0.11339, 0.97599, 0.00000, 0.99332, 0.11540, -0.98256, -0.02146, 0.18472, -45.638, 0.334, -27.221)
+use_collision = true
+size = Vector3(4.03, 1.07, 3.44)
+material = SubResource("rock")
+
+[node name="Trunk0" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -25.275, 2.768, 18.589)
+use_collision = true
+radius = 0.45
+height = 5.54
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy0" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -25.275, 6.137, 18.589)
+radius = 1.86
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk1" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 72.762, 3.458, 43.254)
+use_collision = true
+radius = 0.45
+height = 6.92
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy1" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 72.762, 7.515, 43.254)
+radius = 1.90
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk2" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -35.165, 3.168, -69.062)
+use_collision = true
+radius = 0.45
+height = 6.34
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy2" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -35.165, 6.937, -69.062)
+radius = 2.07
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk3" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 61.712, 2.388, 47.847)
+use_collision = true
+radius = 0.45
+height = 4.78
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy3" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 61.712, 5.376, 47.847)
+radius = 1.95
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk4" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -66.371, 2.638, 28.231)
+use_collision = true
+radius = 0.45
+height = 5.28
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy4" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -66.371, 5.876, 28.231)
+radius = 1.87
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk5" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 65.752, 3.202, 20.166)
+use_collision = true
+radius = 0.45
+height = 6.40
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy5" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 65.752, 7.005, 20.166)
+radius = 1.88
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk6" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 53.434, 3.294, -65.007)
+use_collision = true
+radius = 0.45
+height = 6.59
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy6" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 53.434, 7.188, -65.007)
+radius = 2.25
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk7" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -24.127, 3.390, 7.960)
+use_collision = true
+radius = 0.45
+height = 6.78
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy7" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -24.127, 7.380, 7.960)
+radius = 2.07
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk8" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -55.616, 2.358, 4.037)
+use_collision = true
+radius = 0.45
+height = 4.72
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy8" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -55.616, 5.315, 4.037)
+radius = 1.91
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk9" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -50.783, 2.303, -67.443)
+use_collision = true
+radius = 0.45
+height = 4.61
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy9" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -50.783, 5.205, -67.443)
+radius = 2.11
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk10" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -31.506, 2.267, 0.013)
+use_collision = true
+radius = 0.45
+height = 4.53
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy10" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -31.506, 5.134, 0.013)
+radius = 2.15
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk11" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -72.276, 2.023, -37.433)
+use_collision = true
+radius = 0.45
+height = 4.05
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy11" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -72.276, 4.646, -37.433)
+radius = 2.53
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk12" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 7.657, 2.712, -46.582)
+use_collision = true
+radius = 0.45
+height = 5.42
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy12" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 7.657, 6.024, -46.582)
+radius = 2.73
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk13" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -59.058, 2.648, 47.838)
+use_collision = true
+radius = 0.45
+height = 5.30
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy13" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -59.058, 5.897, 47.838)
+radius = 2.30
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk14" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 50.192, 2.760, -16.037)
+use_collision = true
+radius = 0.45
+height = 5.52
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy14" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 50.192, 6.120, -16.037)
+radius = 2.49
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk15" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 72.366, 3.248, -23.594)
+use_collision = true
+radius = 0.45
+height = 6.50
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy15" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 72.366, 7.097, -23.594)
+radius = 2.51
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk16" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 20.397, 2.521, -14.295)
+use_collision = true
+radius = 0.45
+height = 5.04
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy16" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 20.397, 5.643, -14.295)
+radius = 1.85
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk17" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -55.527, 3.111, -64.392)
+use_collision = true
+radius = 0.45
+height = 6.22
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy17" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -55.527, 6.823, -64.392)
+radius = 2.06
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk18" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -50.513, 3.262, -62.327)
+use_collision = true
+radius = 0.45
+height = 6.52
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy18" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -50.513, 7.124, -62.327)
+radius = 2.67
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk19" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 25.581, 2.363, -32.710)
+use_collision = true
+radius = 0.45
+height = 4.73
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy19" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 25.581, 5.327, -32.710)
+radius = 2.09
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk20" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -8.126, 3.443, -35.514)
+use_collision = true
+radius = 0.45
+height = 6.89
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy20" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -8.126, 7.485, -35.514)
+radius = 2.77
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk21" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 7.061, 3.449, -38.333)
+use_collision = true
+radius = 0.45
+height = 6.90
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy21" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 7.061, 7.497, -38.333)
+radius = 2.11
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk22" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -21.512, 2.572, -74.840)
+use_collision = true
+radius = 0.45
+height = 5.14
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy22" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -21.512, 5.745, -74.840)
+radius = 2.27
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk23" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 0.415, 2.757, -44.853)
+use_collision = true
+radius = 0.45
+height = 5.51
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy23" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 0.415, 6.114, -44.853)
+radius = 1.80
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk24" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -35.375, 2.599, -61.537)
+use_collision = true
+radius = 0.45
+height = 5.20
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy24" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -35.375, 5.799, -61.537)
+radius = 1.84
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk25" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -71.626, 2.349, -29.363)
+use_collision = true
+radius = 0.45
+height = 4.70
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy25" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -71.626, 5.298, -29.363)
+radius = 2.39
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk26" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 4.378, 2.986, 37.581)
+use_collision = true
+radius = 0.45
+height = 5.97
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy26" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 4.378, 6.573, 37.581)
+radius = 2.52
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk27" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 56.864, 2.489, -16.573)
+use_collision = true
+radius = 0.45
+height = 4.98
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy27" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 56.864, 5.578, -16.573)
+radius = 2.78
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk28" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -52.581, 2.965, 33.623)
+use_collision = true
+radius = 0.45
+height = 5.93
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy28" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, -52.581, 6.530, 33.623)
+radius = 1.84
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Trunk29" type="CSGCylinder3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 50.293, 2.941, 58.791)
+use_collision = true
+radius = 0.45
+height = 5.88
+sides = 8
+material = SubResource("bark")
+
+[node name="Canopy29" type="CSGSphere3D" parent="."]
+transform = Transform3D(1.00000, 0.00000, 0.00000, 0.00000, 1.00000, -0.00000, -0.00000, 0.00000, 1.00000, 50.293, 6.482, 58.791)
+radius = 2.53
+radial_segments = 10
+rings = 6
+material = SubResource("leaf")
+
+[node name="Mesa0" type="CSGBox3D" parent="."]
+transform = Transform3D(0.92106, 0.00000, 0.38942, 0.00000, 1.00000, -0.00000, -0.38942, 0.00000, 0.92106, -25.000, 1.500, -5.000)
+use_collision = true
+size = Vector3(10, 3, 10)
+material = SubResource("ash")
+
+[node name="MesaRamp0" type="CSGBox3D" parent="."]
+transform = Transform3D(0.92106, 0.12987, 0.36713, 0.00000, 0.94275, -0.33349, -0.38942, 0.30716, 0.86833, -21.417, 1.350, 3.474)
+use_collision = true
+size = Vector3(4, 0.5, 9)
+material = SubResource("ash")
+
+[node name="Mesa1" type="CSGBox3D" parent="."]
+transform = Transform3D(0.69671, -0.00000, -0.71736, 0.00000, 1.00000, -0.00000, 0.71736, 0.00000, 0.69671, 30.000, 1.500, 15.000)
+use_collision = true
+size = Vector3(10, 3, 10)
+material = SubResource("ash")
+
+[node name="MesaRamp1" type="CSGBox3D" parent="."]
+transform = Transform3D(0.69671, -0.23923, -0.67629, 0.00000, 0.94275, -0.33349, 0.71736, 0.23234, 0.65682, 23.400, 1.350, 21.410)
+use_collision = true
+size = Vector3(4, 0.5, 9)
+material = SubResource("ash")
+
+[node name="Mesa2" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.02920, 0.00000, 0.99957, 0.00000, 1.00000, -0.00000, -0.99957, -0.00000, -0.02920, -5.000, 1.500, 40.000)
+use_collision = true
+size = Vector3(10, 3, 10)
+material = SubResource("ash")
+
+[node name="MesaRamp2" type="CSGBox3D" parent="."]
+transform = Transform3D(-0.02920, 0.33334, 0.94235, 0.00000, 0.94275, -0.33349, -0.99957, -0.00974, -0.02753, 4.196, 1.350, 39.731)
+use_collision = true
+size = Vector3(4, 0.5, 9)
+material = SubResource("ash")

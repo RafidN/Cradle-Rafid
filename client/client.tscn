@@ -1,8 +1,7 @@
-[gd_scene load_steps=11 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://client/net/game_client.gd" id="1_client"]
 [ext_resource type="Script" path="res://shared/net/net_transport.gd" id="2_transport"]
-[ext_resource type="PackedScene" path="res://shared/world/test_arena.tscn" id="3_arena"]
 [ext_resource type="Script" path="res://client/ui/combat_hud.gd" id="4_hud"]
 [ext_resource type="Script" path="res://client/ui/cycling_meter.gd" id="5_meter"]
 [ext_resource type="Script" path="res://client/fx/world_effects.gd" id="6_effects"]
@@ -22,7 +21,6 @@ script = ExtResource("2_transport")
 
 [node name="World" type="Node3D" parent="."]
 
-[node name="Arena" parent="World" instance=ExtResource("3_arena")]
 
 [node name="Entities" type="Node3D" parent="World"]
 

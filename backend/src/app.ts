@@ -2,9 +2,14 @@
 // shard); game servers use /internal endpoints, authenticated with the shared secret.
 //
 // Joining works with one-time tickets: the player asks to join with a character, gets
-// a short-lived ticket and a shard address, and hands the ticket to that game server,
-// which redeems it here to learn who is connecting. The game server never sees
-// passwords or session tokens.
+// a short-lived ticket and a game server address, and hands the ticket to that server,
+// which redeems it here to learn who is connecting. Game servers never see passwords
+// or session tokens.
+//
+// A world (shard) is a set of zones, each run by its own game server ("shards" rows are
+// servers: one zone of one world). Characters remember their world and zone. Moving
+// between zones is a transfer: the current server asks for a ticket to the same
+// world's server for the target zone, and hands it to the player.
 
 import { createServer, type IncomingMessage, type ServerResponse, type Server } from "node:http";
 import { timingSafeEqual } from "node:crypto";
@@ -42,16 +47,23 @@ interface CharacterRow {
   name: string;
   progress: unknown;
   online_shard: string | null;
+  world: string | null;
+  zone: string;
 }
 
 interface ShardRow {
   id: string;
   name: string;
+  world: string;
+  zone: string;
   host: string;
   port: number;
   players: number;
   capacity: number;
 }
+
+const CHARACTER_COLUMNS = "id, name, progress, online_shard, world, zone";
+const ZONE_ID = /^[a-z0-9_]{1,32}$/;
 
 export function createApp(db: Db, config: Config): Server {
   const routes: Route[] = [];
@@ -83,14 +95,34 @@ export function createApp(db: Db, config: Config): Server {
     return { token, username };
   }
 
-  /** Shards with a recent heartbeat; a character on a shard that died counts as offline. */
+  /** Servers with a recent heartbeat; a character on a server that died counts as offline. */
   async function liveShards(): Promise<ShardRow[]> {
     return db.query<ShardRow>(
-      "SELECT id, name, host, port, players, capacity FROM shards WHERE last_seen > $1 ORDER BY players ASC, id ASC",
+      "SELECT id, name, world, zone, host, port, players, capacity FROM shards WHERE last_seen > $1 ORDER BY players ASC, id ASC",
       [new Date(Date.now() - config.shardTimeoutMs)]);
   }
 
-  const publicCharacter = (row: CharacterRow) => ({ id: Number(row.id), name: row.name, progress: row.progress });
+  /**
+   * The server a character should go to for a zone: the one running that zone in the
+   * character's world if it has room, else the least-loaded world with room.
+   */
+  function pickServer(shards: ShardRow[], zone: string, world: string | null): ShardRow | undefined {
+    const open = shards.filter((s) => s.zone === zone && s.players < s.capacity);
+    return open.find((s) => s.world === world) ?? open[0];
+  }
+
+  async function issueTicket(characterId: string, shard: ShardRow, spawn: string): Promise<string> {
+    const ticket = newToken();
+    await db.query("INSERT INTO join_tickets (ticket, character_id, shard_id, spawn, expires_at) VALUES ($1, $2, $3, $4, $5)",
+      [ticket, characterId, shard.id, spawn, new Date(Date.now() + config.ticketTtlMs)]);
+    return ticket;
+  }
+
+  const serverAddress = (shard: ShardRow) =>
+    ({ id: shard.id, name: shard.name, world: shard.world, zone: shard.zone, host: shard.host, port: shard.port });
+
+  const publicCharacter = (row: CharacterRow) =>
+    ({ id: Number(row.id), name: row.name, progress: row.progress, world: row.world, zone: row.zone });
 
   // --- Public ------------------------------------------------------------------------
 
@@ -122,7 +154,7 @@ export function createApp(db: Db, config: Config): Server {
   route("GET", "/characters", async ({ req }) => {
     const accountId = await accountFrom(req);
     const rows = await db.query<CharacterRow>(
-      "SELECT id, name, progress, online_shard FROM characters WHERE account_id = $1 ORDER BY id", [accountId]);
+      `SELECT ${CHARACTER_COLUMNS} FROM characters WHERE account_id = $1 ORDER BY id`, [accountId]);
     return { characters: rows.map(publicCharacter) };
   });
 
@@ -137,27 +169,25 @@ export function createApp(db: Db, config: Config): Server {
     const taken = await db.query("SELECT 1 FROM characters WHERE lower(name) = lower($1)", [name]);
     if (taken.length) throw new HttpError(409, "That name is taken");
     const rows = await db.query<CharacterRow>(
-      "INSERT INTO characters (account_id, name) VALUES ($1, $2) RETURNING id, name, progress, online_shard", [accountId, name]);
+      `INSERT INTO characters (account_id, name) VALUES ($1, $2) RETURNING ${CHARACTER_COLUMNS}`, [accountId, name]);
     return [201, { character: publicCharacter(rows[0]) }];
   });
 
   route("POST", "/characters/:id/join", async ({ req, params }) => {
     const accountId = await accountFrom(req);
     const rows = await db.query<CharacterRow>(
-      "SELECT id, name, progress, online_shard FROM characters WHERE id = $1 AND account_id = $2", [params[0], accountId]);
+      `SELECT ${CHARACTER_COLUMNS} FROM characters WHERE id = $1 AND account_id = $2`, [params[0], accountId]);
     const character = rows[0];
     if (!character) throw new HttpError(404, "No such character");
     const shards = await liveShards();
     // Already in the world (e.g. reconnecting before the old connection timed out):
-    // send them back to the same shard, which hands the character to the new
-    // connection. Otherwise pick the least-loaded shard with room.
+    // send them back to that server, which hands the character to the new connection.
+    // Otherwise go to the server for the zone they were last in.
     const current = shards.find((s) => s.id === character.online_shard);
-    const shard = current ?? shards.find((s) => s.players < s.capacity);
+    const shard = current ?? pickServer(shards, character.zone, character.world);
     if (!shard) throw new HttpError(503, "No world server is available right now");
-    const ticket = newToken();
-    await db.query("INSERT INTO join_tickets (ticket, character_id, shard_id, expires_at) VALUES ($1, $2, $3, $4)",
-      [ticket, character.id, shard.id, new Date(Date.now() + config.ticketTtlMs)]);
-    return { ticket, shard: { id: shard.id, name: shard.name, host: shard.host, port: shard.port } };
+    const ticket = await issueTicket(character.id, shard, "default");
+    return { ticket, shard: serverAddress(shard) };
   });
 
   route("GET", "/shards", async () => ({ shards: await liveShards() }));
@@ -169,26 +199,57 @@ export function createApp(db: Db, config: Config): Server {
     const id = String(body.id ?? "");
     if (!id) throw new HttpError(400, "Missing shard id");
     await db.query(
-      `INSERT INTO shards (id, name, host, port, players, capacity, last_seen) VALUES ($1, $2, $3, $4, $5, $6, now())
-       ON CONFLICT (id) DO UPDATE SET name = $2, host = $3, port = $4, players = $5, capacity = $6, last_seen = now()`,
-      [id, String(body.name ?? id), String(body.host ?? "127.0.0.1"), Number(body.port ?? 7777),
-        Number(body.players ?? 0), Number(body.capacity ?? 100)]);
+      `INSERT INTO shards (id, name, world, zone, host, port, players, capacity, last_seen)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, now())
+       ON CONFLICT (id) DO UPDATE SET name = $2, world = $3, zone = $4, host = $5, port = $6, players = $7,
+         capacity = $8, last_seen = now()`,
+      [id, String(body.name ?? id), String(body.world ?? "alpha"), String(body.zone ?? "proving_grounds"),
+        String(body.host ?? "127.0.0.1"), Number(body.port ?? 7777), Number(body.players ?? 0), Number(body.capacity ?? 100)]);
     return { ok: true };
   });
 
-  /** Consumes a ticket and marks the character as online on that shard. */
+  /**
+   * Consumes a ticket and marks the character as online on that server, in its world
+   * and zone. Returns the character and the spawn point to arrive at.
+   */
   route("POST", "/internal/tickets/redeem", async ({ req, body }) => {
     requireServer(req);
-    const rows = await db.query<{ character_id: string; shard_id: string }>(
-      "DELETE FROM join_tickets WHERE ticket = $1 AND expires_at > now() RETURNING character_id, shard_id",
+    const rows = await db.query<{ character_id: string; shard_id: string; spawn: string }>(
+      "DELETE FROM join_tickets WHERE ticket = $1 AND expires_at > now() RETURNING character_id, shard_id, spawn",
       [String(body.ticket ?? "")]);
     const ticket = rows[0];
     if (!ticket) throw new HttpError(404, "Invalid or expired ticket");
-    if (body.shard_id && body.shard_id !== ticket.shard_id) throw new HttpError(409, "Ticket is for another shard");
+    if (body.shard_id && body.shard_id !== ticket.shard_id) throw new HttpError(409, "Ticket is for another server");
     const characters = await db.query<CharacterRow>(
-      "UPDATE characters SET online_shard = $2 WHERE id = $1 RETURNING id, name, progress, online_shard",
+      `UPDATE characters SET online_shard = s.id, world = s.world, zone = s.zone
+       FROM shards s WHERE characters.id = $1 AND s.id = $2
+       RETURNING characters.id, characters.name, characters.progress, characters.online_shard, characters.world, characters.zone`,
       [ticket.character_id, ticket.shard_id]);
-    return { character: publicCharacter(characters[0]) };
+    if (!characters[0]) throw new HttpError(404, "Unknown server");
+    return { character: publicCharacter(characters[0]), spawn: ticket.spawn };
+  });
+
+  /**
+   * Moves a character to another zone of its world: saves its progress, and returns a
+   * ticket for the server running that zone. The character stays online throughout.
+   */
+  route("POST", "/internal/characters/:id/transfer", async ({ req, params, body }) => {
+    requireServer(req);
+    const zone = String(body.zone ?? "");
+    const spawn = String(body.spawn ?? "default");
+    if (!ZONE_ID.test(zone) || !ZONE_ID.test(spawn)) throw new HttpError(400, "Bad zone or spawn");
+    const rows = await db.query<CharacterRow>(`SELECT ${CHARACTER_COLUMNS} FROM characters WHERE id = $1`, [params[0]]);
+    const character = rows[0];
+    if (!character) throw new HttpError(404, "No such character");
+    if (typeof body.progress === "object" && body.progress !== null) {
+      await db.query("UPDATE characters SET progress = $2, updated_at = now() WHERE id = $1",
+        [character.id, JSON.stringify(body.progress)]);
+    }
+    const shard = pickServer(await liveShards(), zone, character.world);
+    if (!shard) throw new HttpError(503, "No server is running that zone");
+    const ticket = await issueTicket(character.id, shard, spawn);
+    await db.query("UPDATE characters SET online_shard = $2 WHERE id = $1", [character.id, shard.id]);
+    return { ticket, host: shard.host, port: shard.port, server: serverAddress(shard) };
   });
 
   route("PUT", "/internal/characters/:id/progress", async ({ req, params, body }) => {

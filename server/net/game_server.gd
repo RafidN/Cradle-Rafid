@@ -20,10 +20,6 @@ const MAX_INPUT_CREDIT := 4.0
 const MAX_REWIND_TICKS := 12
 const KILL_Y := -30.0
 const REJECT_GRACE_SECONDS := 0.5
-const DUMMIES := [
-	{"name": "Training Dummy", "position": Vector3(-3.0, 0.5, -3.0), "block": false},
-	{"name": "Guarding Dummy", "position": Vector3(3.0, 0.5, -3.0), "block": true},
-]
 ## Dummies face +Z, toward where players spawn.
 const DUMMY_FACING := PI
 const BEAST_TEAM := 1
@@ -33,15 +29,7 @@ const AUTOSAVE_SECONDS := 10.0
 ## ENet drops a peer that has been silent this long (ms), instead of its ~30 s default.
 const PEER_TIMEOUT_MIN_MS := 4000
 const PEER_TIMEOUT_MAX_MS := 10000
-## Where sacred beasts make their dens.
-const BEAST_DENS := [
-	{"species": Beasts.EMBER_HOUND, "position": Vector3(-18.0, 0.5, 14.0)},
-	{"species": Beasts.EMBER_HOUND, "position": Vector3(-22.0, 0.5, 20.0)},
-	{"species": Beasts.GALE_FOX, "position": Vector3(-20.0, 0.5, -18.0)},
-	{"species": Beasts.GALE_FOX, "position": Vector3(-14.0, 0.5, -23.0)},
-	{"species": Beasts.STONEBACK_BOAR, "position": Vector3(20.0, 0.5, 18.0)},
-	{"species": Beasts.STONEBACK_BOAR, "position": Vector3(22.0, 0.5, -16.0)},
-]
+const STATS_SECONDS := 5.0
 
 
 class ClientSession:
@@ -57,6 +45,11 @@ class ClientSession:
 	var last_processed_tick := 0
 	var input_credit := 0.0
 	var interacting := false
+	var interest := Interest.new()
+	## Set once the player is on their way to another zone.
+	var transferring := false
+	## Where in this zone the player arrived (spawn name).
+	var arrived_at := "default"
 
 
 class Dummy:
@@ -75,10 +68,17 @@ class Beast:
 var log_hits := false
 ## Multiplies essence from remnants, to test progression quickly.
 var essence_mult := 1
+## Which zone of the world this server runs (see Zones). Set before start().
+var zone_id := Zones.DEFAULT
+## Print tick time and bandwidth every few seconds.
+var log_stats := false
 ## Online mode: set before start(). Null runs offline.
 var backend: BackendClient
-var shard_id := "local"
-var shard_name := "Local Shard"
+## The world (shard) this server belongs to; each world runs one server per zone.
+var world_id := "alpha"
+## Unique per server process; defaults to "<world>/<zone>".
+var shard_id := "alpha/proving_grounds"
+var shard_name := "Alpha"
 ## Address the backend gives players for this shard.
 var public_host := "127.0.0.1"
 
@@ -93,13 +93,32 @@ var _remnants := RemnantField.new()
 var _tick := 0
 var _next_entity_id := 1
 var _port := 0
+var _zone: Dictionary
+# Stats since the last report.
+var _tick_usec_total := 0
+var _tick_usec_max := 0
+## Time per tick phase (usec), for finding hot spots.
+var _phase_usec := {}
+var _phase_started := 0
+var _ticks_measured := 0
+var _bytes_sent_reported := 0
+var _bytes_received_reported := 0
 
 @onready var _transport: NetTransport = $NetTransport
+@onready var _world: Node3D = $World
 @onready var _entities: Node3D = $World/Entities
+@onready var _overview_camera: Camera3D = $World/OverviewCamera
 @onready var _status: Label = $Debug/Status
 
 
 func start(port: int) -> Error:
+	_zone = Zones.get_zone(zone_id)
+	if _zone.is_empty():
+		push_error("Unknown zone '%s'" % zone_id)
+		return ERR_INVALID_PARAMETER
+	_world.add_child(load(_zone.scene).instantiate())
+	var extent: float = _zone.get("overview", 30.0)
+	_overview_camera.position = Vector3(0.0, extent, extent)
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, Protocol.MAX_PLAYERS)
 	if err != OK:
@@ -115,10 +134,13 @@ func start(port: int) -> Error:
 	_effects.max_rewind_ticks = MAX_REWIND_TICKS
 	_effects.land_hit = _land_hit
 	_effects.burst = func(caster_id: int, technique_id: int, at: Vector3) -> void:
-		_broadcast(Protocol.encode_burst(caster_id, technique_id, at), false)
+		_broadcast_near(at, Protocol.encode_burst(caster_id, technique_id, at))
 	_spawn_dummies()
 	_spawn_beasts()
-	print("[server] Listening on UDP port %d (protocol v%d, %d Hz)" % [port, Protocol.VERSION, Protocol.TICK_RATE])
+	print("[server] %s listening on UDP port %d (protocol v%d, %d Hz)" % [
+		_zone.name, port, Protocol.VERSION, Protocol.TICK_RATE])
+	if log_stats:
+		_every(STATS_SECONDS, _report_stats)
 	if backend:
 		add_child(backend)
 		_every(HEARTBEAT_SECONDS, _send_heartbeat)
@@ -131,6 +153,8 @@ func start(port: int) -> Error:
 
 
 func _physics_process(delta: float) -> void:
+	var started := Time.get_ticks_usec()
+	_phase_started = started
 	_tick += 1
 	var bodies := _entities.get_children()
 	for session: ClientSession in _sessions.values():
@@ -142,24 +166,35 @@ func _physics_process(delta: float) -> void:
 			session.input_credit -= 1.0
 			session.interacting = input.is_pressed(PlayerInput.INTERACT)
 			_after_simulate(session.body, input.view_tick, bodies)
+	_phase("players")
 	var artists := _artist_bodies()
 	for beast in _beasts:
 		beast.body.simulate(beast.brain.think(artists), delta)
 		_after_simulate(beast.body, _tick - 1, bodies)
 	for dummy in _dummies:
 		dummy.body.simulate(dummy.input, delta)
+	_phase("beasts")
 	_effects.update(_tick, bodies, _entities.get_world_3d().direct_space_state)
+	_phase("effects")
 	_update_remnants()
+	_check_portals()
+	_phase("remnants")
 
 	for body: PlayerBody in bodies:
 		if body.global_position.y < KILL_Y or (body.is_dead() and body.action_tick >= _respawn_ticks(body)):
 			_respawn(body)
 
 	_hit_history.record(_tick, bodies)
+	_phase("history")
 	_send_snapshots()
+	_phase("snapshots")
 	if _tick % Protocol.TICK_RATE == 0:
-		_status.text = "SERVER  |  port %d  |  tick %d  |  %d / %d players  |  %d remnants" % [
-			_port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _remnants.count()]
+		_status.text = "SERVER  |  %s  |  port %d  |  tick %d  |  %d / %d players  |  %d remnants" % [
+			_zone.name, _port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _remnants.count()]
+	var elapsed := Time.get_ticks_usec() - started
+	_tick_usec_total += elapsed
+	_tick_usec_max = maxi(_tick_usec_max, elapsed)
+	_ticks_measured += 1
 
 
 ## Melee hits and technique releases for a fighter that just simulated a tick.
@@ -197,7 +232,7 @@ func _land_hit(attacker: PlayerBody, target: PlayerBody, spec: HitSpec, origin: 
 	var outcome := Combat.resolve(attacker, target, spec, origin)
 	var attacker_id := attacker.entity_id if attacker else 0
 	var at := target.global_position + Vector3.UP * 1.6
-	_broadcast(Protocol.encode_hit(attacker_id, target.entity_id, outcome[0], outcome[1], at), false)
+	_broadcast_near(at, Protocol.encode_hit(attacker_id, target.entity_id, outcome[0], outcome[1], at))
 	var beast := _beast_of(target)
 	if beast:
 		beast.brain.on_hit(attacker)
@@ -238,13 +273,45 @@ func _update_remnants() -> void:
 			remnant.source_name, remnant.essence, Advancement.ASPECT_NAMES[remnant.aspect].to_lower()])
 
 
+## Every fighter is encoded once per tick; each player then gets the entries (and
+## effects) that their interest set selects.
 func _send_snapshots() -> void:
 	var bodies := _entities.get_children()
-	var effects := _effects.snapshot_entries() + _remnants.snapshot_entries()
+	var ids := PackedInt32Array()
+	var positions := PackedVector3Array()
+	var entries := []
+	for body: PlayerBody in bodies:
+		ids.append(body.entity_id)
+		positions.append(body.global_position)
+		entries.append(Protocol.encode_remote_entry(body))
+	var effect_ids := PackedInt32Array()
+	var effect_positions := PackedVector3Array()
+	var effect_stationary := PackedByteArray()
+	var effect_entries := []
+	for effect: Dictionary in _effects.snapshot_entries() + _remnants.snapshot_entries():
+		effect_ids.append(effect.id)
+		effect_positions.append(effect.position)
+		effect_stationary.append(1 if effect.kind != Protocol.Effect.PROJECTILE else 0)
+		effect_entries.append(Protocol.encode_effect_entry(effect))
 	for session: ClientSession in _sessions.values():
+		var viewer := session.body.global_position
+		var visible := []
+		for i in session.interest.select(viewer, ids, positions, _tick):
+			if ids[i] != session.body.entity_id:
+				visible.append(entries[i])
+		var nearby := []
+		for i in Interest.select_effects(viewer, effect_ids, effect_positions, effect_stationary, _tick):
+			nearby.append(effect_entries[i])
 		var claim := _remnants.progress_of(session.body.entity_id)
-		var bytes := Protocol.encode_snapshot(_tick, session.last_processed_tick, session.body, bodies, effects, claim)
+		var bytes := Protocol.encode_snapshot(_tick, session.last_processed_tick, session.body, visible, nearby, claim)
 		_transport.send(session.peer_id, bytes, false)
+
+
+## Unreliable events (hits, bursts) only go to players close enough to see them.
+func _broadcast_near(at: Vector3, bytes: PackedByteArray) -> void:
+	for session: ClientSession in _sessions.values():
+		if Interest.can_see(session.body.global_position, at):
+			_transport.send(session.peer_id, bytes, false)
 
 
 func _broadcast(bytes: PackedByteArray, reliable: bool) -> void:
@@ -305,10 +372,11 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 			_remove_session(old, false)
 			multiplayer.multiplayer_peer.disconnect_peer(old.peer_id)
 			print("[server] %s reconnected; dropped the old connection" % old.display_name)
-	_admit(peer_id, String(character.get("name", "Artist")), character_id, progress)
+	_admit(peer_id, String(character.get("name", "Artist")), character_id, progress, String(redeemed.data.get("spawn", "default")))
 
 
-func _admit(peer_id: int, display_name: String, character_id: int, progress: ProgressState) -> void:
+func _admit(peer_id: int, display_name: String, character_id: int, progress: ProgressState,
+		spawn_name := "default") -> void:
 	var session := ClientSession.new()
 	session.peer_id = peer_id
 	session.display_name = display_name
@@ -316,12 +384,13 @@ func _admit(peer_id: int, display_name: String, character_id: int, progress: Pro
 	session.progress = progress
 	session.body = _spawn_body(display_name, Protocol.EntityKind.ARTIST, -1)
 	session.progress.apply_to(session.body)
-	session.body.respawn(_spawn_point(), 0.0)
+	session.arrived_at = spawn_name
+	session.body.respawn(Zones.spawn_point(zone_id, spawn_name), 0.0)
 	_sessions[peer_id] = session
 	_set_rank_info(session)
 
 	var body := session.body
-	_transport.send(peer_id, Protocol.encode_welcome(body.entity_id, body.global_position, body.facing), true)
+	_transport.send(peer_id, Protocol.encode_welcome(body.entity_id, body.global_position, body.facing, zone_id), true)
 	_send_progress(session)
 	for entity_id in _info:
 		if entity_id != body.entity_id:
@@ -417,11 +486,83 @@ func _reject(peer_id: int, reason: String) -> void:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
 
 
+# --- Zones -------------------------------------------------------------------------
+
+## Walking into a portal sends the player to another zone's server. That goes through
+## the backend (which saves the character and issues a ticket for the target zone), so
+## portals only work online.
+func _check_portals() -> void:
+	for session: ClientSession in _sessions.values():
+		if session.transferring or session.body.is_dead():
+			continue
+		for portal: Dictionary in _zone.portals:
+			var offset: Vector3 = session.body.global_position - portal.position
+			if Vector2(offset.x, offset.z).length() > portal.radius:
+				continue
+			if backend == null or session.character_id < 0:
+				if _tick % (Protocol.TICK_RATE * 2) == 0:
+					_notify(session, "Portals only work on an online server")
+				continue
+			_transfer(session, portal)
+
+
+func _transfer(session: ClientSession, portal: Dictionary) -> void:
+	session.transferring = true
+	var destination := Zones.display_name(portal.to_zone)
+	_notify(session, "Traveling to %s..." % destination)
+	var result := await backend.request_json(HTTPClient.METHOD_POST,
+		"/internal/characters/%d/transfer" % session.character_id,
+		{"zone": portal.to_zone, "spawn": portal.to_spawn, "progress": session.progress.to_dict()})
+	if not _sessions.has(session.peer_id):
+		return  # They left while we were asking.
+	if not result.ok:
+		session.transferring = false
+		_notify(session, "The way to %s is closed: %s" % [destination, result.error])
+		# Step them back out of the portal so it doesn't fire again immediately.
+		session.body.global_position = Zones.spawn_point(zone_id, session.arrived_at)
+		return
+	session.progress_dirty = false
+	_transport.send(session.peer_id, Protocol.encode_transfer(String(result.data.host), int(result.data.port),
+		String(result.data.ticket), String(portal.to_zone)), true)
+	print("[server] %s is traveling to %s" % [session.display_name, destination])
+	_remove_session(session, false)
+
+
+## Charges the time since the previous phase mark to this phase.
+func _phase(phase: String) -> void:
+	if not log_stats:
+		return
+	var now := Time.get_ticks_usec()
+	_phase_usec[phase] = _phase_usec.get(phase, 0) + now - _phase_started
+	_phase_started = now
+
+
+func _report_stats() -> void:
+	var seconds := STATS_SECONDS
+	var sent := _transport.bytes_sent - _bytes_sent_reported
+	var received := _transport.bytes_received - _bytes_received_reported
+	_bytes_sent_reported = _transport.bytes_sent
+	_bytes_received_reported = _transport.bytes_received
+	var players := _sessions.size()
+	print("[stats] %s | %d players, %d fighters | tick avg %.2f ms, max %.2f ms (budget %.1f) | out %.1f KB/s (%.1f per player) | in %.1f KB/s" % [
+		_zone.name, players, _entities.get_child_count(),
+		_tick_usec_total / 1000.0 / maxi(_ticks_measured, 1), _tick_usec_max / 1000.0, 1000.0 / Protocol.TICK_RATE,
+		sent / 1024.0 / seconds, sent / 1024.0 / seconds / maxi(players, 1), received / 1024.0 / seconds])
+	var phases := PackedStringArray()
+	for phase: String in _phase_usec:
+		phases.append("%s %.2f" % [phase, _phase_usec[phase] / 1000.0 / maxi(_ticks_measured, 1)])
+	print("[stats]   per tick (ms): %s" % ", ".join(phases))
+	_phase_usec.clear()
+	_tick_usec_total = 0
+	_tick_usec_max = 0
+	_ticks_measured = 0
+
+
 # --- Backend ------------------------------------------------------------------------
 
 func _send_heartbeat() -> void:
 	var result := await backend.request_json(HTTPClient.METHOD_POST, "/internal/shards/heartbeat", {
-		"id": shard_id, "name": shard_name, "host": public_host, "port": _port,
+		"id": shard_id, "name": shard_name, "world": world_id, "zone": zone_id, "host": public_host, "port": _port,
 		"players": _sessions.size() + _joining.size(), "capacity": Protocol.MAX_PLAYERS,
 	})
 	if not result.ok:
@@ -464,7 +605,7 @@ func _notify(session: ClientSession, text: String) -> void:
 # --- Fighters -----------------------------------------------------------------------
 
 func _spawn_dummies() -> void:
-	for config: Dictionary in DUMMIES:
+	for config: Dictionary in _zone.dummies:
 		var dummy := Dummy.new()
 		dummy.home = config.position
 		dummy.body = _spawn_body(config.name, Protocol.EntityKind.DUMMY, -1)
@@ -476,7 +617,7 @@ func _spawn_dummies() -> void:
 
 
 func _spawn_beasts() -> void:
-	for den: Dictionary in BEAST_DENS:
+	for den: Dictionary in _zone.dens:
 		var data := Beasts.get_beast(den.species)
 		var beast := Beast.new()
 		beast.species = den.species
@@ -484,6 +625,7 @@ func _spawn_beasts() -> void:
 		beast.body.apply_stats(data.max_health, PlayerBody.MAX_MADRA, PlayerInput.TECHNIQUE_COUNT,
 			data.damage_mult, data.knockback_taken_mult, data.speed_mult)
 		beast.body.team = BEAST_TEAM
+		_info[beast.body.entity_id].max_health = data.max_health
 		beast.body.respawn(den.position, randf() * TAU)
 		beast.brain = BeastBrain.new(data, beast.body, den.position, beast.body.entity_id)
 		_beasts.append(beast)
@@ -495,7 +637,8 @@ func _spawn_body(display_name: String, kind: Protocol.EntityKind, species: int) 
 	body.name = "Fighter%d" % _next_entity_id
 	_next_entity_id += 1
 	_entities.add_child(body)
-	_info[body.entity_id] = {"name": display_name, "kind": kind, "species": species, "rank": 0}
+	_info[body.entity_id] = {"name": display_name, "kind": kind, "species": species, "rank": 0,
+		"max_health": PlayerBody.MAX_HEALTH}
 	return body
 
 
@@ -508,7 +651,7 @@ func _respawn(body: PlayerBody) -> void:
 	if beast:
 		body.respawn(beast.brain.home, randf() * TAU)
 		return
-	body.respawn(_spawn_point(), body.facing)
+	body.respawn(Zones.spawn_point(zone_id, "default"), body.facing)
 
 
 func _respawn_ticks(body: PlayerBody) -> int:
@@ -516,17 +659,14 @@ func _respawn_ticks(body: PlayerBody) -> int:
 	return Beasts.get_beast(beast.species).respawn_ticks if beast else PlayerBody.RESPAWN_TICKS
 
 
-func _spawn_point() -> Vector3:
-	return Vector3(randf_range(-4.0, 4.0), 0.5, randf_range(2.0, 6.0))
-
-
 func _set_rank_info(session: ClientSession) -> void:
 	_info[session.body.entity_id].rank = session.progress.rank
+	_info[session.body.entity_id].max_health = session.body.max_health
 
 
 func _encode_info(entity_id: int) -> PackedByteArray:
 	var info: Dictionary = _info[entity_id]
-	return Protocol.encode_entity_info(entity_id, info.name, info.kind, info.species, info.rank)
+	return Protocol.encode_entity_info(entity_id, info.name, info.kind, info.species, info.rank, info.max_health)
 
 
 func _artist_bodies() -> Array:

@@ -13,6 +13,9 @@ const DUMMY_COLOR := Color(0.75, 0.68, 0.55)
 
 var display_name := "..."
 var kind := Protocol.EntityKind.ARTIST
+var max_health := PlayerBody.MAX_HEALTH
+## Tick of the newest snapshot that included this fighter.
+var last_seen_tick := 0
 var _label_text := "..."
 var _locked := false
 
@@ -41,6 +44,8 @@ func _ready() -> void:
 func configure(info: Dictionary) -> void:
 	display_name = info.name
 	kind = info.kind
+	max_health = info.get("max_health", PlayerBody.MAX_HEALTH)
+	_shown_health = -1
 	var tint := ARTIST_COLOR
 	var size := 1.0
 	_label_text = "%s  ·  %s" % [display_name, Advancement.rank_name(info.rank)]
@@ -72,6 +77,7 @@ func _refresh_label() -> void:
 
 func push_state(tick: int, state: Dictionary) -> void:
 	state.tick = tick
+	last_seen_tick = tick
 	_states.append(state)
 	if _states.size() > MAX_BUFFERED:
 		_states.pop_front()
@@ -112,7 +118,7 @@ func render(render_tick: float, delta: float) -> void:
 		_speed = lerpf(_speed, Vector2(moved.x, moved.z).length() / delta, 1.0 - exp(-12.0 * delta))
 	_previous_position = global_position
 	_model.update_pose(from.action, from.action_id, action_tick, from.flags, _speed, delta)
-	_update_health_bar(from.health, from.max_health)
+	_update_health_bar(from.health, max_health)
 
 
 func _update_health_bar(health: int, max_health: int) -> void:

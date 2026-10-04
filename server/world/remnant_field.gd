@@ -9,6 +9,8 @@ const CLAIM_TICKS := 60
 const CLAIM_RADIUS := 2.2
 const EXCLUSIVE_TICKS := 300
 const LIFETIME_TICKS := 2700
+## Most remnants a zone holds; the oldest fade first.
+const MAX_REMNANTS := 120
 ## Remnant ids share the snapshot's effect id space with technique effects.
 const FIRST_ID := 1 << 24
 
@@ -42,6 +44,8 @@ func spawn(at: Vector3, aspect: int, essence: int, owner_id: int, source_name: S
 	remnant.source_name = source_name
 	remnant.position = at + Vector3.UP * 0.9
 	_remnants.append(remnant)
+	if _remnants.size() > MAX_REMNANTS:
+		_remnants.pop_front()
 
 
 ## claimants: [{body: PlayerBody, interacting: bool}] for every sacred artist.

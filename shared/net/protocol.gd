@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 5
+const VERSION := 6
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -14,8 +14,15 @@ const MAX_TICKET_LENGTH := 128
 
 enum Msg {
 	HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, ENTITY_INFO, ENTITY_LEFT, HIT, BURST,
-	REQUEST, PROGRESS, NOTICE,
+	REQUEST, PROGRESS, NOTICE, TRANSFER,
 }
+
+## Other fighters' positions are sent as 16-bit fixed point: 1/64 m steps, +-512 m.
+const POSITION_SCALE := 64.0
+## Bytes per fighter in a snapshot (see encode_remote_entry).
+const REMOTE_ENTRY_SIZE := 15
+## Bytes per world effect in a snapshot (see encode_effect_entry).
+const EFFECT_ENTRY_SIZE := 21
 
 ## Kinds of world effects (server-owned objects that aren't fighters) sent in snapshots.
 enum Effect { PROJECTILE, TRAP, REMNANT }
@@ -76,20 +83,44 @@ static func decode_inputs(buf: StreamPeerBuffer) -> Array[PlayerInput]:
 
 # --- Server -> client ---------------------------------------------------------------
 
-static func encode_welcome(entity_id: int, position: Vector3, facing: float) -> PackedByteArray:
+static func encode_welcome(entity_id: int, position: Vector3, facing: float, zone_id: String) -> PackedByteArray:
 	var buf := _writer(Msg.WELCOME)
 	buf.put_u32(entity_id)
 	_put_vector3(buf, position)
 	buf.put_float(facing)
+	_put_string(buf, zone_id)
 	return buf.data_array
 
 
 static func decode_welcome(buf: StreamPeerBuffer) -> Dictionary:
-	return {
+	var welcome := {
 		"entity_id": buf.get_u32(),
 		"position": _get_vector3(buf),
 		"facing": buf.get_float(),
 	}
+	var zone_id = _get_string(buf, 64)
+	welcome.zone = zone_id if zone_id != null else Zones.DEFAULT
+	return welcome
+
+
+## Go to another zone's server: connect to host:port and join with ticket.
+static func encode_transfer(host: String, port: int, ticket: String, zone_id: String) -> PackedByteArray:
+	var buf := _writer(Msg.TRANSFER)
+	_put_string(buf, host)
+	buf.put_u16(port)
+	_put_string(buf, ticket)
+	_put_string(buf, zone_id)
+	return buf.data_array
+
+
+static func decode_transfer(buf: StreamPeerBuffer) -> Dictionary:
+	var host = _get_string(buf, 256)
+	var port := buf.get_u16()
+	var ticket = _get_string(buf, MAX_TICKET_LENGTH)
+	var zone_id = _get_string(buf, 64)
+	if host == null or ticket == null or zone_id == null:
+		return {}
+	return {"host": host, "port": port, "ticket": ticket, "zone": zone_id}
 
 
 static func encode_reject(reason: String) -> PackedByteArray:
@@ -105,38 +136,52 @@ static func decode_reject(buf: StreamPeerBuffer) -> String:
 
 ## One snapshot per client per tick. The receiving client's own fighter is sent in full
 ## (everything PlayerBody.capture_state() holds) for reconciliation, with the tick of the
-## last input the server applied for it. Everyone else is sent with just what's needed
-## to draw them, followed by world effects: {id, kind, owner, position, velocity, armed,
-## data}. claim is the client's remnant-claiming progress, 0-1.
-static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array,
-		effects: Array, claim: float) -> PackedByteArray:
+## last input the server applied for it. Then the other fighters it can see, as entries
+## from encode_remote_entry(), then the world effects it can see, as entries from
+## encode_effect_entry(). Entries are encoded once per tick and shared by every client.
+## claim is the client's remnant-claiming progress, 0-1.
+static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, remote_entries: Array,
+		effect_entries: Array, claim: float) -> PackedByteArray:
 	var buf := _writer(Msg.SNAPSHOT)
 	buf.put_u32(tick)
 	buf.put_u32(ack_input_tick)
 	buf.put_u8(roundi(clampf(claim, 0.0, 1.0) * 255.0))
 	_put_body_state(buf, own.capture_state())
-	buf.put_u16(bodies.size() - 1)
-	for body: PlayerBody in bodies:
-		if body == own:
-			continue
-		buf.put_u32(body.entity_id)
-		_put_vector3(buf, body.global_position)
-		buf.put_u16(quantize_angle(body.facing))
-		buf.put_u8(body.action)
-		buf.put_u8(body.action_id)
-		buf.put_u16(body.action_tick)
-		buf.put_u16(body.health)
-		buf.put_u16(body.max_health)
-		buf.put_u8(body.visual_flags())
-	buf.put_u16(effects.size())
-	for effect: Dictionary in effects:
-		buf.put_u32(effect.id)
-		buf.put_u8(effect.kind)
-		buf.put_u32(effect.owner)
-		_put_vector3(buf, effect.position)
-		_put_vector3(buf, effect.velocity)
-		buf.put_u8(1 if effect.armed else 0)
-		buf.put_u8(effect.get("data", 0))
+	buf.put_u16(remote_entries.size())
+	var bytes := buf.data_array
+	for entry: PackedByteArray in remote_entries:
+		bytes.append_array(entry)
+	bytes.append(effect_entries.size() & 0xFF)
+	bytes.append(effect_entries.size() >> 8)
+	for entry: PackedByteArray in effect_entries:
+		bytes.append_array(entry)
+	return bytes
+
+
+## A world effect ({id, kind, owner, position, velocity, armed, data}). 21 bytes.
+static func encode_effect_entry(effect: Dictionary) -> PackedByteArray:
+	var buf := StreamPeerBuffer.new()
+	buf.put_u32(effect.id)
+	buf.put_u8(effect.kind)
+	buf.put_u16(effect.owner)
+	_put_fixed(buf, effect.position)
+	_put_fixed(buf, effect.velocity)
+	buf.put_u8(1 if effect.armed else 0)
+	buf.put_u8(effect.get("data", 0))
+	return buf.data_array
+
+
+## A fighter as other clients see it: just enough to draw it. 15 bytes.
+static func encode_remote_entry(body: PlayerBody) -> PackedByteArray:
+	var buf := StreamPeerBuffer.new()
+	buf.put_u16(body.entity_id)
+	_put_fixed(buf, body.global_position)
+	buf.put_u8(quantize_angle(body.facing) >> 8)
+	buf.put_u8(body.action)
+	buf.put_u8(body.action_id)
+	buf.put_u8(mini(body.action_tick, 255))
+	buf.put_u16(body.health)
+	buf.put_u8(body.visual_flags())
 	return buf.data_array
 
 
@@ -147,29 +192,28 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 		"claim": buf.get_u8() / 255.0,
 		"state": _get_body_state(buf),
 		"others": [],
+		"effects": [],
 	}
 	var count := buf.get_u16()
 	for i in count:
 		snapshot.others.append({
-			"id": buf.get_u32(),
-			"position": _get_vector3(buf),
-			"facing": dequantize_angle(buf.get_u16()),
+			"id": buf.get_u16(),
+			"position": _get_fixed(buf),
+			"facing": dequantize_angle(buf.get_u8() << 8),
 			"action": buf.get_u8(),
 			"action_id": buf.get_u8(),
-			"action_tick": buf.get_u16(),
+			"action_tick": buf.get_u8(),
 			"health": buf.get_u16(),
-			"max_health": buf.get_u16(),
 			"flags": buf.get_u8(),
 		})
-	snapshot.effects = []
 	var effect_count := buf.get_u16()
 	for i in effect_count:
 		snapshot.effects.append({
 			"id": buf.get_u32(),
 			"kind": buf.get_u8(),
-			"owner": buf.get_u32(),
-			"position": _get_vector3(buf),
-			"velocity": _get_vector3(buf),
+			"owner": buf.get_u16(),
+			"position": _get_fixed(buf),
+			"velocity": _get_fixed(buf),
 			"armed": buf.get_u8() != 0,
 			"data": buf.get_u8(),
 		})
@@ -209,15 +253,17 @@ static func decode_burst(buf: StreamPeerBuffer) -> Dictionary:
 	return {"caster": buf.get_u32(), "technique": buf.get_u8(), "position": _get_vector3(buf)}
 
 
-## Who a fighter is: name, what kind of fighter, species (beasts) and rank (artists).
-## Sent when the client first needs it and again whenever it changes.
-static func encode_entity_info(entity_id: int, display_name: String, kind: EntityKind, species: int, rank: int) -> PackedByteArray:
+## Who a fighter is: name, what kind of fighter, species (beasts), rank (artists) and
+## max health. Sent when the client first needs it and again whenever it changes.
+static func encode_entity_info(entity_id: int, display_name: String, kind: EntityKind, species: int, rank: int,
+		max_health: int) -> PackedByteArray:
 	var buf := _writer(Msg.ENTITY_INFO)
 	buf.put_u32(entity_id)
 	_put_string(buf, display_name)
 	buf.put_u8(kind)
 	buf.put_u8(maxi(species, 0))
 	buf.put_u8(rank)
+	buf.put_u16(max_health)
 	return buf.data_array
 
 
@@ -230,6 +276,7 @@ static func decode_entity_info(buf: StreamPeerBuffer) -> Dictionary:
 		"kind": buf.get_u8(),
 		"species": buf.get_u8(),
 		"rank": buf.get_u8(),
+		"max_health": buf.get_u16(),
 	}
 
 
@@ -333,6 +380,16 @@ static func _get_body_state(buf: StreamPeerBuffer) -> Dictionary:
 		"exhaust_ticks": buf.get_u8(),
 		"enforcer_active": buf.get_u8() != 0,
 	}
+
+
+## 16-bit fixed point per axis (1/POSITION_SCALE steps), for positions and velocities.
+static func _put_fixed(buf: StreamPeerBuffer, v: Vector3) -> void:
+	for axis in 3:
+		buf.put_16(clampi(roundi(v[axis] * POSITION_SCALE), -32768, 32767))
+
+
+static func _get_fixed(buf: StreamPeerBuffer) -> Vector3:
+	return Vector3(buf.get_16(), buf.get_16(), buf.get_16()) / POSITION_SCALE
 
 
 static func _put_vector3(buf: StreamPeerBuffer, v: Vector3) -> void:

@@ -50,6 +50,9 @@ func _run() -> void:
 	_test_stat_multipliers()
 	_test_remnant_claiming()
 	_test_beast_brain()
+	_test_interest()
+	_test_remote_entry_encoding()
+	_test_zone_data()
 
 	print("\n%s" % ("ALL TESTS PASSED" if _failures == 0 else "%d FAILURE(S)" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -536,6 +539,80 @@ func _test_beast_brain() -> void:
 	brain.think([near, far])
 	_check(brain.state == BeastBrain.State.IDLE and beast.health == beast.max_health, "beasts heal once home")
 	_free([beast, far, near])
+
+
+func _test_interest() -> void:
+	var interest := Interest.new()
+	var ids := PackedInt32Array([1, 2, 3])
+	var positions := PackedVector3Array([Vector3(5, 0, 0), Vector3(40, 0, 0), Vector3(60, 0, 0)])
+	var seen := {}
+	for tick in Interest.FAR_INTERVAL:
+		for i in interest.select(Vector3.ZERO, ids, positions, tick):
+			seen[ids[i]] = seen.get(ids[i], 0) + 1
+	_check(seen.get(1, 0) == Interest.FAR_INTERVAL, "near fighters are sent every tick")
+	_check(seen.get(2, 0) == 1, "far fighters are sent every %d ticks" % Interest.FAR_INTERVAL)
+	_check(not seen.has(3), "fighters beyond the enter radius aren't sent")
+
+	positions[1] = Vector3(60, 0, 0)  # Already in view: stays until LEAVE_RADIUS.
+	var still_seen := false
+	for tick in Interest.FAR_INTERVAL:
+		still_seen = still_seen or Array(interest.select(Vector3.ZERO, ids, positions, tick)).has(1)
+	_check(still_seen, "a fighter in view stays in view past the enter radius (hysteresis)")
+	positions[1] = Vector3(70, 0, 0)
+	interest.select(Vector3.ZERO, ids, positions, 0)
+	positions[1] = Vector3(60, 0, 0)
+	var back := false
+	for tick in Interest.FAR_INTERVAL:
+		back = back or Array(interest.select(Vector3.ZERO, ids, positions, tick)).has(1)
+	_check(not back, "once out of view, it has to come back inside the enter radius")
+
+
+func _test_remote_entry_encoding() -> void:
+	var body := _body(Vector3(-37.123, 2.5, 71.987), 1.234)
+	body.entity_id = 4321
+	body.health = 77
+	body.enforcer_active = true
+	var snapshot_body := _body(Vector3.ZERO, 0.0)
+	var entry := Protocol.encode_remote_entry(body)
+	_check(entry.size() == Protocol.REMOTE_ENTRY_SIZE, "remote entries are %d bytes" % Protocol.REMOTE_ENTRY_SIZE)
+	var effect := {"id": 1 << 24, "kind": Protocol.Effect.REMNANT, "owner": 4321, "position": Vector3(1.5, 0.9, -3.25),
+		"velocity": Vector3(0, 0, -24), "armed": true, "data": 2}
+	var effect_entry := Protocol.encode_effect_entry(effect)
+	_check(effect_entry.size() == Protocol.EFFECT_ENTRY_SIZE, "effect entries are %d bytes" % Protocol.EFFECT_ENTRY_SIZE)
+	var bytes := Protocol.encode_snapshot(9, 8, snapshot_body, [entry], [effect_entry], 0.0)
+	var buf := Protocol.reader(bytes)
+	buf.get_u8()
+	var snapshot := Protocol.decode_snapshot(buf)
+	var decoded: Dictionary = snapshot.others[0]
+	var decoded_effect: Dictionary = snapshot.effects[0]
+	_check(decoded_effect.id == effect.id and decoded_effect.owner == 4321 and decoded_effect.data == 2
+		and decoded_effect.position.distance_to(effect.position) < 1.0 / Protocol.POSITION_SCALE
+		and decoded_effect.velocity.distance_to(effect.velocity) < 1.0 / Protocol.POSITION_SCALE,
+		"effect entry fields survive the wire")
+	_check(decoded.id == 4321 and decoded.health == 77 and decoded.flags & PlayerBody.FLAG_ENFORCER,
+		"remote entry fields survive the wire")
+	_check(decoded.position.distance_to(body.global_position) < 1.0 / Protocol.POSITION_SCALE,
+		"positions are accurate to 1/%d m" % Protocol.POSITION_SCALE)
+	_check(absf(angle_difference(decoded.facing, body.facing)) < TAU / 256.0, "facing is accurate to 1/256 turn")
+	_free([body, snapshot_body])
+
+
+func _test_zone_data() -> void:
+	var problems := []
+	for zone_id: String in Zones.ALL:
+		var zone: Dictionary = Zones.ALL[zone_id]
+		if not ResourceLoader.exists(zone.scene):
+			problems.append("%s: missing scene" % zone_id)
+		if not zone.spawns.has("default"):
+			problems.append("%s: no default spawn" % zone_id)
+		for portal: Dictionary in zone.portals:
+			var target := Zones.get_zone(portal.to_zone)
+			if target.is_empty() or not target.spawns.has(portal.to_spawn):
+				problems.append("%s: portal to unknown %s/%s" % [zone_id, portal.to_zone, portal.to_spawn])
+			for spawn: Vector3 in zone.spawns.values():
+				if Vector2(spawn.x - portal.position.x, spawn.z - portal.position.z).length() < portal.radius + 3.0:
+					problems.append("%s: a spawn point is inside a portal" % zone_id)
+	_check(problems.is_empty(), "zones are consistent%s" % ("" if problems.is_empty() else " %s" % [problems]))
 
 
 # --- Helpers ------------------------------------------------------------------------

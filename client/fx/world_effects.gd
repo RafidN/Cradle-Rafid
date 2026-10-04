@@ -7,15 +7,19 @@ extends Node3D
 const FLAME := Color(1.0, 0.5, 0.15)
 const PREDICTED_HIT_RADIUS := 0.7
 const WORLD_MASK := 1
+## Stationary effects are only resent every few ticks; one missing this long is gone.
+const STATIONARY_EXPIRY_TICKS := 20
 
 ## Called with no arguments; returns positions predicted projectiles can stop on.
 var target_positions: Callable
 
 var _server_effects := {}  # id -> {node, kind, tick, position, velocity, last_seen}
 var _predicted: Array[Dictionary] = []  # {node, velocity, remaining}
+var _newest_tick := 0
 
 
 func sync(snapshot_tick: int, effects: Array, local_entity_id: int) -> void:
+	_newest_tick = snapshot_tick
 	for effect: Dictionary in effects:
 		if effect.kind == Protocol.Effect.PROJECTILE and effect.owner == local_entity_id:
 			continue  # Already shown as a predicted projectile.
@@ -43,8 +47,11 @@ func sync(snapshot_tick: int, effects: Array, local_entity_id: int) -> void:
 func render(render_tick: float) -> void:
 	for id in _server_effects.keys():
 		var entry: Dictionary = _server_effects[id]
-		# Gone from snapshots: keep drawing until render time catches up, then remove.
-		if render_tick > entry.last_seen + 1:
+		# Gone from snapshots. Projectiles (sent every tick) are drawn until render time
+		# catches up with their last update; stationary effects expire after a while.
+		var gone: bool = render_tick > entry.last_seen + 1 if entry.kind == Protocol.Effect.PROJECTILE \
+			else _newest_tick - entry.last_seen > STATIONARY_EXPIRY_TICKS
+		if gone:
 			entry.node.queue_free()
 			_server_effects.erase(id)
 			continue

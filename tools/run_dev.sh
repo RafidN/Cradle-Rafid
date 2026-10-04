@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Online development setup: the backend (embedded Postgres, no Docker needed), a game
-# server registered with it, and client windows that open on the login screen.
+# Online development setup: the backend (embedded Postgres, no Docker needed), one game
+# server per zone of world "alpha" (Proving Grounds on 7777, Ember Wilds on 7778), and
+# client windows that open on the login screen. Walk through a portal to change zones.
 # Usage: tools/run_dev.sh [clients=1]
 # Set GODOT to override the Godot binary. Ctrl+C or closing any window stops everything.
 # Saved accounts live in backend/data/; delete that folder to start fresh.
@@ -25,7 +26,9 @@ for _ in $(seq 1 40); do
   sleep 0.5
 done
 
-"$GODOT" --path "$ROOT" --headless -- --server --backend="$BACKEND_URL" --shard-id=dev --shard-name="Dev Shard" &
+"$GODOT" --path "$ROOT" --headless -- --server --port=7777 --zone=proving_grounds --backend="$BACKEND_URL" &
+PIDS+=($!)
+"$GODOT" --path "$ROOT" --headless -- --server --port=7778 --zone=ember_wilds --backend="$BACKEND_URL" &
 PIDS+=($!)
 sleep 1
 

@@ -3,7 +3,7 @@ extends Node
 ## depending on the build and these command-line arguments (with or without a "--"
 ## separator before them, so they also work in the editor's Customize Run Instances):
 ##   --server [--port=7777] [--log-hits] [--essence-mult=N]
-##   --server [--backend=URL --server-secret=S --shard-id=ID --shard-name=N --public-host=H]
+##   --server [--zone=ID] [--stats] [--backend=URL --world=ID --server-secret=S --shard-name=N --public-host=H]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
 ##   --backend=URL [--account=user:password --character=Name] [--bot]  (online client)
 ##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
@@ -70,12 +70,15 @@ func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	var server: GameServer = SERVER_SCENE.instantiate()
 	server.log_hits = log_hits
 	server.essence_mult = maxi(essence_mult, 1)
+	server.zone_id = String(_args.get("zone", Zones.DEFAULT))
+	server.log_stats = _args.has("stats")
 	if _args.has("backend"):
 		server.backend = BackendClient.new()
 		server.backend.base_url = String(_args.backend)
 		server.backend.server_secret = String(_args.get("server-secret", "dev-secret-change-me"))
-		server.shard_id = String(_args.get("shard-id", "shard-%d" % port))
-		server.shard_name = String(_args.get("shard-name", "Shard %d" % port))
+		server.world_id = String(_args.get("world", "alpha"))
+		server.shard_id = String(_args.get("shard-id", "%s/%s" % [server.world_id, server.zone_id]))
+		server.shard_name = String(_args.get("shard-name", server.world_id.capitalize()))
 		server.public_host = String(_args.get("public-host", "127.0.0.1"))
 	add_child(server)
 	var err := server.start(port)
@@ -111,8 +114,10 @@ func _start_client(address: String, display_name: String, latency_ms: float,
 
 	var client: GameClient = CLIENT_SCENE.instantiate()
 	client.bot = bot
+	client.bot_travel = bot and _args.has("travel")
 	add_child(client)
 	client.disconnected.connect(_on_client_disconnected)
+	client.transfer_requested.connect(_on_transfer.bind(display_name, latency_ms, jitter_ms, loss_percent, bot))
 	var err := client.connect_to_server(host, port, display_name,
 		conditioner if conditioner.is_active() else null, ticket)
 	if err != OK:
@@ -121,6 +126,18 @@ func _start_client(address: String, display_name: String, latency_ms: float,
 		return
 	_session = client
 	_menu.hide()
+
+
+## Hop to another zone's server: tear down this client and join there with the ticket.
+func _on_transfer(host: String, port: int, ticket: String, zone_id: String, display_name: String,
+		latency_ms: float, jitter_ms: float, loss_percent: float, bot: bool) -> void:
+	if _headless:
+		print("[client %s] Traveling to %s" % [display_name, Zones.display_name(zone_id)])
+	var old := _session
+	_session = null
+	old.queue_free()
+	await old.tree_exited  # Let it close its connection before opening the next one.
+	_start_client("%s:%d" % [host, port], display_name, latency_ms, jitter_ms, loss_percent, bot, ticket)
 
 
 func _on_client_disconnected(reason: String) -> void:

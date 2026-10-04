@@ -69,9 +69,15 @@ const SCHEMA = [
      capacity  INTEGER NOT NULL DEFAULT 100,
      last_seen TIMESTAMPTZ NOT NULL
    )`,
+  // Worlds and zones (M5). Each server row is one zone of one world.
+  `ALTER TABLE shards ADD COLUMN IF NOT EXISTS world TEXT NOT NULL DEFAULT 'alpha'`,
+  `ALTER TABLE shards ADD COLUMN IF NOT EXISTS zone TEXT NOT NULL DEFAULT 'proving_grounds'`,
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS world TEXT`,
+  `ALTER TABLE characters ADD COLUMN IF NOT EXISTS zone TEXT NOT NULL DEFAULT 'proving_grounds'`,
+  `ALTER TABLE join_tickets ADD COLUMN IF NOT EXISTS spawn TEXT NOT NULL DEFAULT 'default'`,
 ];
 
-/** Creates any missing tables. Safe to run on every start. */
+/** Creates any missing tables and columns. Safe to run on every start. */
 export async function migrate(db: Db): Promise<void> {
   for (const statement of SCHEMA) {
     await db.query(statement);

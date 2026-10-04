@@ -78,7 +78,7 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 | Local player | **Client-side prediction** with **server reconciliation**. The client keeps a buffer of its inputs and replays them after each correction. |
 | Remote entities | **Snapshot interpolation**, rendered about 100 ms in the past. |
 | Hit detection | **Lag compensation**: the server rewinds hurtboxes to the tick the attacker actually saw. Melee uses swept hitboxes over the active frames. |
-| Bandwidth | **Interest management** on a spatial grid, so each client only receives entities near it. **Delta compression** against the last snapshot the client acknowledged. Values are quantized. |
+| Bandwidth | **Interest management**: each client only receives fighters, effects and events near it. Entities are quantized and encoded once per tick and shared by every client. Distant fighters and stationary effects update less often. *(Delta compression against acknowledged snapshots is future work.)* |
 | Cheating | Inputs are validated (rate, cooldowns, madra cost, distance). The client never sends anything that can change state on its own authority. |
 | Testing | A network condition simulator (latency, jitter, packet loss) and headless **bot clients** for load tests. |
 
@@ -175,6 +175,32 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 - **Dead connections:** they're dropped after about 10 s, down from ENet's ~30 s default.
 - **Offline mode:** a server started without `--backend` still runs offline. Anyone joins by name and nothing is saved. That's handy for quick tests and bots (`tools/run_local.sh`).
 
+### Worlds, zones and scale implementation (M5)
+- **Worlds and zones:** a **world** (shard) is a set of **zones**, and each zone runs as its own game server process (`--zone=ID`, `--world=ID`). Zones are defined in `shared/world/zones.gd`:
+  - **Proving Grounds:** the arena, with dummies and a few beasts.
+  - **Ember Wilds:** 160×160 m, with 14 beast dens.
+- **Portals:** glowing rings that move you between zones.
+  1. The server saves your character and asks the backend for a ticket to the target zone's server *in your world*.
+  2. The client hops servers automatically.
+  
+  Characters remember their zone, and logging in returns you there.
+- **Interest management** (`server/world/interest.gd`):
+  - Fighters come into view within 55 m and leave beyond 65 m, so things at the edge don't flicker in and out.
+  - Fighters beyond 25 m are sent every 3rd tick. Stationary effects (remnants, traps) are sent every 6th tick; projectiles every tick.
+  - Hits and bursts only go to players nearby.
+- **Encoding:**
+  - Each fighter is a 15-byte entry and each effect a 21-byte entry, using 16-bit fixed-point positions at 1/64 m.
+  - Every entry is encoded once per tick and shared by every client.
+  - Each zone holds at most 120 remnants.
+- **Load test:** `tools/load_test.gd` runs many lightweight bots from one process; start the server with `--stats`. Results with 100 bots on a laptop (Apple M1 Pro, GDScript server):
+
+  | Scenario | Avg tick (budget 33 ms) | Max tick | Out per player |
+  |---|---|---|---|
+  | 100 players spread across Ember Wilds | 15.5 ms | 21 ms | 35 KB/s |
+  | 100 players packed in the Proving Grounds (all in view) | 15.0 ms | 22 ms | 56 KB/s |
+
+  Before these optimizations, the spread case ran at a 28 ms average with 45 ms spikes and used 140 KB/s per player.
+
 ## 3. Project layout
 
 ```
@@ -234,7 +260,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
 5. ✅ **M4: Persistence**
    - The backend service: accounts, characters and inventory.
    - Token handoff to zone servers and autosave.
-6. **M5: Shards and zones**
+6. ✅ **M5: Shards and zones**
    - Multiple zone servers and a shard list.
    - Moving players between zones.
    - Interest management at full scale, and load tests with 100 bots.
@@ -243,13 +269,20 @@ Each milestone ends with something you can play and test over a simulated bad ne
 
 ## Running
 
-**Online (accounts and saving):** start the backend, a game server registered with it, and a client window on the login screen:
+**Online (accounts, saving, zones):** start the backend, one game server per zone, and a client window on the login screen:
 
 ```bash
 tools/run_dev.sh
 ```
 
-Register an account, create a character, and enter the world. Saved data lives in `backend/data/`; delete that folder to start fresh. Pass a number for more client windows (`tools/run_dev.sh 2`).
+Register an account, create a character, and enter the world. Walk through the glowing portal at the north end of the Proving Grounds to reach Ember Wilds. Saved data lives in `backend/data/`; delete that folder to start fresh. Pass a number for more client windows (`tools/run_dev.sh 2`).
+
+**Load test** (100 bots against an offline server; watch the server's `[stats]` lines):
+
+```bash
+/Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . -- --server --zone=ember_wilds --stats
+/Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tools/load_test.gd -- --bots=100
+```
 
 **Offline (no backend):** see the local test below.
 
@@ -258,8 +291,10 @@ Register an account, create a character, and enter the world. Saved data lives i
 | Arguments | Starts |
 |---|---|
 | *(none, windowed)* | A connect menu with Connect / Start Server and network simulation settings |
-| `--server [--port=7777]` | Server. A headless run or a `dedicated_server` export does the same thing without the flag. |
-| `--backend=URL` (server) | Online mode, plus `--server-secret=S --shard-id=ID --shard-name=N --public-host=H` |
+| `--server [--port=7777] [--zone=proving_grounds]` | Server for one zone. A headless run or a `dedicated_server` export does the same thing without the flag. |
+| `--stats` (server) | Print tick time (with a per-phase breakdown) and bandwidth every 5 s |
+| `--travel` (bot) | Head for a portal shortly after arriving, to exercise zone transfers |
+| `--backend=URL` (server) | Online mode, plus `--world=alpha --server-secret=S --shard-name=N --public-host=H` |
 | `--backend=URL` (client) | Fill in the backend URL on the login screen |
 | `--account=user:pass --character=Name` | Log in (registering if needed), create the character if needed, and join. Use with `--bot` for automated online clients. |
 | `--connect=host[:port] [--name=X]` | A client that connects straight away |

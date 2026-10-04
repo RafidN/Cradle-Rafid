@@ -39,8 +39,8 @@ async function api(method: string, path: string, body?: unknown, headers: Record
 const auth = (token: string) => ({ Authorization: `Bearer ${token}` });
 const server_ = { "X-Server-Secret": SECRET };
 
-async function heartbeat(id = "shard-1", players = 0) {
-  return api("POST", "/internal/shards/heartbeat", { id, name: "Test Shard", host: "127.0.0.1", port: 7777, players, capacity: 2 }, server_);
+async function heartbeat(id = "shard-1", players = 0, world = "alpha", zone = "proving_grounds", port = 7777) {
+  return api("POST", "/internal/shards/heartbeat", { id, name: "Test Shard", world, zone, host: "127.0.0.1", port, players, capacity: 2 }, server_);
 }
 
 test("register, log in, and reject bad credentials", async () => {
@@ -126,4 +126,41 @@ test("full shards and dead shards aren't offered", async () => {
   await heartbeat("fresh", 0);
   const join = await api("POST", `/characters/${made.character.id}/join`, undefined, auth(account.token));
   assert.equal(join.data.shard.id, "fresh");
+});
+
+test("zone transfers stay in the character's world and remember the zone", async () => {
+  await db.query("DELETE FROM shards");
+  await heartbeat("alpha/grounds", 1, "alpha", "proving_grounds", 7001);
+  await heartbeat("beta/grounds", 0, "beta", "proving_grounds", 7003);
+  await heartbeat("alpha/wilds", 1, "alpha", "ember_wilds", 7002);
+  await heartbeat("beta/wilds", 0, "beta", "ember_wilds", 7004);
+
+  const { data: account } = await api("POST", "/auth/register", { username: "sophara", password: "password7" });
+  const { data: made } = await api("POST", "/characters", { name: "Sophara" }, auth(account.token));
+  const id = made.character.id;
+
+  const join = await api("POST", `/characters/${id}/join`, undefined, auth(account.token));
+  assert.equal(join.data.shard.zone, "proving_grounds", "new characters start in the Proving Grounds");
+  assert.equal(join.data.shard.world, "beta", "least-loaded world");
+  const redeemed = await api("POST", "/internal/tickets/redeem", { ticket: join.data.ticket }, server_);
+  assert.equal(redeemed.data.spawn, "default");
+
+  assert.equal((await api("POST", `/internal/characters/${id}/transfer`, { zone: "ember_wilds" })).status, 403);
+  await db.query("UPDATE shards SET players = 0 WHERE world = 'alpha'");
+  await db.query("UPDATE shards SET players = 1 WHERE world = 'beta' AND zone = 'ember_wilds'");
+  const transfer = await api("POST", `/internal/characters/${id}/transfer`,
+    { zone: "ember_wilds", spawn: "from_grounds", progress: { rank: 1 } }, server_);
+  assert.equal(transfer.status, 200);
+  assert.equal(transfer.data.server.id, "beta/wilds", "stays in its own world even if another is emptier");
+  const arrived = await api("POST", "/internal/tickets/redeem", { ticket: transfer.data.ticket, shard_id: "beta/wilds" }, server_);
+  assert.equal(arrived.data.spawn, "from_grounds");
+  assert.equal(arrived.data.character.zone, "ember_wilds");
+  assert.deepEqual(arrived.data.character.progress, { rank: 1 }, "progress saved on transfer");
+
+  await api("POST", `/internal/characters/${id}/left`, {}, server_);
+  const back = await api("POST", `/characters/${id}/join`, undefined, auth(account.token));
+  assert.equal(back.data.shard.id, "beta/wilds", "logging back in returns to the last zone");
+
+  assert.equal((await api("POST", `/internal/characters/${id}/transfer`, { zone: "nowhere" }, server_)).status, 503);
+  assert.equal((await api("POST", `/internal/characters/${id}/transfer`, { zone: "../etc" }, server_)).status, 400);
 });
