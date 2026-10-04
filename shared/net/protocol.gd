@@ -3,13 +3,14 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 4
+const VERSION := 5
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
 ## How many of the newest inputs each INPUT packet repeats, so one lost packet costs nothing.
 const INPUT_REDUNDANCY := 6
 const MAX_NAME_LENGTH := 16
+const MAX_TICKET_LENGTH := 128
 
 enum Msg {
 	HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, ENTITY_INFO, ENTITY_LEFT, HIT, BURST,
@@ -30,22 +31,26 @@ static func is_reliable(msg: int) -> bool:
 
 # --- Client -> server ---------------------------------------------------------------
 
-static func encode_hello(display_name: String) -> PackedByteArray:
+## ticket is a join ticket from the backend; empty when playing on an offline server,
+## which uses display_name instead.
+static func encode_hello(display_name: String, ticket := "") -> PackedByteArray:
 	var buf := _writer(Msg.HELLO)
 	buf.put_u16(VERSION)
 	_put_string(buf, display_name.left(MAX_NAME_LENGTH))
+	_put_string(buf, ticket.left(MAX_TICKET_LENGTH))
 	return buf.data_array
 
 
-## Returns {version, name}, or {} if the packet is malformed.
+## Returns {version, name, ticket}, or {} if the packet is malformed.
 static func decode_hello(buf: StreamPeerBuffer) -> Dictionary:
 	if buf.get_available_bytes() < 2:
 		return {}
 	var version := buf.get_u16()
 	var display_name = _get_string(buf, MAX_NAME_LENGTH * 4)
-	if display_name == null:
+	var ticket = _get_string(buf, MAX_TICKET_LENGTH)
+	if display_name == null or ticket == null:
 		return {}
-	return {"version": version, "name": display_name}
+	return {"version": version, "name": display_name, "ticket": ticket}
 
 
 static func encode_inputs(inputs: Array) -> PackedByteArray:

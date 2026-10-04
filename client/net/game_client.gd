@@ -57,6 +57,7 @@ var _lock_target_id := -1
 var _bot_cycling := false
 var _bot_request_cooldown := 0
 var _display_name := ""
+var _ticket := ""
 var _closed := false
 
 # Stats for the debug overlay.
@@ -75,8 +76,10 @@ var _stats_timer := 0.0
 @onready var _hud: CombatHud = $HUD
 
 
-func connect_to_server(host: String, port: int, display_name: String, conditioner: NetConditioner) -> Error:
+## ticket comes from the backend when playing online; offline servers ignore it.
+func connect_to_server(host: String, port: int, display_name: String, conditioner: NetConditioner, ticket := "") -> Error:
 	_display_name = display_name
+	_ticket = ticket
 	_transport.conditioner = conditioner
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_client(host, port)
@@ -109,7 +112,10 @@ func _close(reason: String) -> void:
 
 
 func _on_connected() -> void:
-	_transport.send(1, Protocol.encode_hello(_display_name), true)
+	# Notice a dead server in seconds rather than ENet's ~30 s default.
+	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	peer.get_peer(1).set_timeout(0, GameServer.PEER_TIMEOUT_MIN_MS, GameServer.PEER_TIMEOUT_MAX_MS)
+	_transport.send(1, Protocol.encode_hello(_display_name, _ticket), true)
 
 
 func _unhandled_input(event: InputEvent) -> void:

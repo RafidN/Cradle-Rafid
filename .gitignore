@@ -8,3 +8,8 @@ export_credentials.cfg
 
 # OS
 .DS_Store
+
+# Backend
+backend/node_modules/
+backend/dist/
+backend/data/

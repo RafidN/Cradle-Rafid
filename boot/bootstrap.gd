@@ -3,7 +3,9 @@ extends Node
 ## depending on the build and these command-line arguments (with or without a "--"
 ## separator before them, so they also work in the editor's Customize Run Instances):
 ##   --server [--port=7777] [--log-hits] [--essence-mult=N]
+##   --server [--backend=URL --server-secret=S --shard-id=ID --shard-name=N --public-host=H]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
+##   --backend=URL [--account=user:password --character=Name] [--bot]  (online client)
 ##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
 ## Headless runs and dedicated_server exports start a server unless --connect is given.
 
@@ -13,6 +15,7 @@ const HEADLESS_MAX_FPS := 120
 
 var _headless := DisplayServer.get_name() == "headless"
 var _session: Node
+var _args := {}
 
 @onready var _menu: CanvasLayer = $Menu
 @onready var _name_edit: LineEdit = %NameEdit
@@ -21,17 +24,30 @@ var _session: Node
 @onready var _jitter_spin: SpinBox = %JitterSpin
 @onready var _loss_spin: SpinBox = %LossSpin
 @onready var _status_label: Label = %StatusLabel
+@onready var _account_panel: AccountPanel = %AccountPanel
 
 
 func _ready() -> void:
 	%ConnectButton.pressed.connect(_on_connect_pressed)
+	_account_panel.play.connect(_on_online_play)
+	_account_panel.failed.connect(_fail)
 	%ServerButton.pressed.connect(_start_server.bind(Protocol.DEFAULT_PORT, false, 1))
 	if _headless:
 		Engine.max_fps = HEADLESS_MAX_FPS
 
 	var args := _parse_args(OS.get_cmdline_args() + OS.get_cmdline_user_args())
+	_args = args
 	if args.has("screenshot"):
 		_screenshot_and_quit(String(args.screenshot), String(args.get("screenshot-after", "5")).to_float())
+	var is_server := args.has("server") or OS.has_feature("dedicated_server") or (_headless and not args.has("connect") \
+		and not args.has("account"))
+	if args.has("backend") and not is_server:
+		_account_panel.set_backend_url(String(args.backend))
+		if args.has("account"):
+			var account := String(args.account).split(":", true, 1)
+			_account_panel.auto_play(account[0], account[1] if account.size() > 1 else "",
+				String(args.get("character", account[0])))
+		return
 	if args.has("connect"):
 		_start_client(
 			String(args.connect),
@@ -40,7 +56,7 @@ func _ready() -> void:
 			String(args.get("jitter", "0")).to_float(),
 			String(args.get("loss", "0")).to_float(),
 			args.has("bot"))
-	elif args.has("server") or _headless or OS.has_feature("dedicated_server"):
+	elif is_server:
 		_start_server(String(args.get("port", str(Protocol.DEFAULT_PORT))).to_int(), args.has("log-hits"),
 			String(args.get("essence-mult", "1")).to_int())
 
@@ -54,6 +70,13 @@ func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	var server: GameServer = SERVER_SCENE.instantiate()
 	server.log_hits = log_hits
 	server.essence_mult = maxi(essence_mult, 1)
+	if _args.has("backend"):
+		server.backend = BackendClient.new()
+		server.backend.base_url = String(_args.backend)
+		server.backend.server_secret = String(_args.get("server-secret", "dev-secret-change-me"))
+		server.shard_id = String(_args.get("shard-id", "shard-%d" % port))
+		server.shard_name = String(_args.get("shard-name", "Shard %d" % port))
+		server.public_host = String(_args.get("public-host", "127.0.0.1"))
 	add_child(server)
 	var err := server.start(port)
 	if err != OK:
@@ -64,8 +87,16 @@ func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	_menu.hide()
 
 
+func _on_online_play(host: String, port: int, ticket: String, character_name: String) -> void:
+	_start_client("%s:%d" % [host, port], character_name,
+		String(_args.get("latency", str(_latency_spin.value))).to_float(),
+		String(_args.get("jitter", str(_jitter_spin.value))).to_float(),
+		String(_args.get("loss", str(_loss_spin.value))).to_float(),
+		_args.has("bot"), ticket)
+
+
 func _start_client(address: String, display_name: String, latency_ms: float,
-		jitter_ms: float, loss_percent: float, bot: bool) -> void:
+		jitter_ms: float, loss_percent: float, bot: bool, ticket := "") -> void:
 	var host := address.get_slice(":", 0)
 	var port := Protocol.DEFAULT_PORT
 	if address.contains(":"):
@@ -83,7 +114,7 @@ func _start_client(address: String, display_name: String, latency_ms: float,
 	add_child(client)
 	client.disconnected.connect(_on_client_disconnected)
 	var err := client.connect_to_server(host, port, display_name,
-		conditioner if conditioner.is_active() else null)
+		conditioner if conditioner.is_active() else null, ticket)
 	if err != OK:
 		client.queue_free()
 		_fail("Could not connect: %s" % error_string(err))

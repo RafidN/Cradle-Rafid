@@ -4,6 +4,11 @@ extends Node
 ## fighter (players, training dummies and sacred beasts), resolves hits with lag
 ## compensation, runs technique effects and remnants, owns each player's progression,
 ## and sends each client a snapshot of the world every tick.
+##
+## With a backend (online mode), players join with a one-time ticket from the backend,
+## their character's progression is loaded from it and saved back, and the server sends
+## heartbeats so the backend can route players here. Without one (offline mode, for
+## development), anyone can join by name and nothing is saved.
 
 const PLAYER_SCENE := preload("res://shared/sim/player_body.tscn")
 ## Queued inputs beyond this are dropped so a client can't bank movement.
@@ -22,6 +27,12 @@ const DUMMIES := [
 ## Dummies face +Z, toward where players spawn.
 const DUMMY_FACING := PI
 const BEAST_TEAM := 1
+const HEARTBEAT_SECONDS := 5.0
+## Changed progression is saved this often (and always when the player leaves).
+const AUTOSAVE_SECONDS := 10.0
+## ENet drops a peer that has been silent this long (ms), instead of its ~30 s default.
+const PEER_TIMEOUT_MIN_MS := 4000
+const PEER_TIMEOUT_MAX_MS := 10000
 ## Where sacred beasts make their dens.
 const BEAST_DENS := [
 	{"species": Beasts.EMBER_HOUND, "position": Vector3(-18.0, 0.5, 14.0)},
@@ -35,6 +46,9 @@ const BEAST_DENS := [
 
 class ClientSession:
 	var peer_id := 0
+	## Backend character id, or -1 in offline mode.
+	var character_id := -1
+	var progress_dirty := false
 	var display_name := ""
 	var body: PlayerBody
 	var progress := ProgressState.new()
@@ -61,8 +75,15 @@ class Beast:
 var log_hits := false
 ## Multiplies essence from remnants, to test progression quickly.
 var essence_mult := 1
+## Online mode: set before start(). Null runs offline.
+var backend: BackendClient
+var shard_id := "local"
+var shard_name := "Local Shard"
+## Address the backend gives players for this shard.
+var public_host := "127.0.0.1"
 
 var _sessions := {}  # peer_id -> ClientSession
+var _joining := {}  # peer_id -> true while their join ticket is being redeemed
 var _dummies: Array[Dummy] = []
 var _beasts: Array[Beast] = []
 var _info := {}  # entity_id -> {name, kind, species, rank}, for every fighter
@@ -85,6 +106,8 @@ func start(port: int) -> Error:
 		return err
 	(multiplayer as SceneMultiplayer).server_relay = false
 	multiplayer.multiplayer_peer = peer
+	multiplayer.peer_connected.connect(func(peer_id: int):
+		peer.get_peer(peer_id).set_timeout(0, PEER_TIMEOUT_MIN_MS, PEER_TIMEOUT_MAX_MS))
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	_transport.packet_received.connect(_on_packet)
 	_port = port
@@ -96,6 +119,14 @@ func start(port: int) -> Error:
 	_spawn_dummies()
 	_spawn_beasts()
 	print("[server] Listening on UDP port %d (protocol v%d, %d Hz)" % [port, Protocol.VERSION, Protocol.TICK_RATE])
+	if backend:
+		add_child(backend)
+		_every(HEARTBEAT_SECONDS, _send_heartbeat)
+		_every(AUTOSAVE_SECONDS, _autosave)
+		_send_heartbeat()
+		print("[server] Online mode: shard '%s' registered with %s" % [shard_id, backend.base_url])
+	else:
+		print("[server] Offline mode: players join by name and nothing is saved")
 	return OK
 
 
@@ -201,6 +232,7 @@ func _update_remnants() -> void:
 		var session := _session_by_entity(claim[0])
 		var remnant: RemnantField.Remnant = claim[1]
 		session.progress.add_essence(remnant.aspect, remnant.essence)
+		session.progress_dirty = true
 		_send_progress(session)
 		_notify(session, "Claimed the remnant of %s: +%d %s essence" % [
 			remnant.source_name, remnant.essence, Advancement.ASPECT_NAMES[remnant.aspect].to_lower()])
@@ -239,13 +271,49 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 	if hello.is_empty() or hello.version != Protocol.VERSION:
 		_reject(peer_id, "Version mismatch: server runs protocol v%d" % Protocol.VERSION)
 		return
+	if backend == null:
+		var display_name := String(hello.name).strip_edges().left(Protocol.MAX_NAME_LENGTH)
+		_admit(peer_id, display_name if not display_name.is_empty() else "Artist", -1, ProgressState.new())
+		return
+	if _joining.has(peer_id):
+		return
+	if String(hello.ticket).is_empty():
+		_reject(peer_id, "This server requires logging in")
+		return
 
-	var display_name := String(hello.name).strip_edges().left(Protocol.MAX_NAME_LENGTH)
-	if display_name.is_empty():
-		display_name = "Artist"
+	_joining[peer_id] = true
+	var redeemed := await backend.request_json(HTTPClient.METHOD_POST, "/internal/tickets/redeem",
+		{"ticket": hello.ticket, "shard_id": shard_id})
+	var still_here := _joining.erase(peer_id)
+	if not redeemed.ok:
+		if still_here:
+			_reject(peer_id, "Couldn't join: %s" % redeemed.error)
+		return
+	var character: Dictionary = redeemed.data.get("character", {})
+	var character_id := int(character.get("id", -1))
+	var progress_data = character.get("progress", {})
+	var progress := ProgressState.from_dict(progress_data if progress_data is Dictionary else {})
+	if not still_here:
+		# They disconnected while we were asking; release the character again.
+		backend.request_json(HTTPClient.METHOD_POST, "/internal/characters/%d/left" % character_id, {})
+		return
+	# Logging in again takes over: the old connection (often a dead one that hasn't timed
+	# out yet) is dropped, and its in-memory progress, which is newer than the save, carries over.
+	for old: ClientSession in _sessions.values():
+		if old.character_id == character_id:
+			progress = old.progress
+			_remove_session(old, false)
+			multiplayer.multiplayer_peer.disconnect_peer(old.peer_id)
+			print("[server] %s reconnected; dropped the old connection" % old.display_name)
+	_admit(peer_id, String(character.get("name", "Artist")), character_id, progress)
+
+
+func _admit(peer_id: int, display_name: String, character_id: int, progress: ProgressState) -> void:
 	var session := ClientSession.new()
 	session.peer_id = peer_id
 	session.display_name = display_name
+	session.character_id = character_id
+	session.progress = progress
 	session.body = _spawn_body(display_name, Protocol.EntityKind.ARTIST, -1)
 	session.progress.apply_to(session.body)
 	session.body.respawn(_spawn_point(), 0.0)
@@ -261,8 +329,9 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 	for other: ClientSession in _sessions.values():
 		if other != session:
 			_transport.send(other.peer_id, _encode_info(body.entity_id), true)
-	print("[server] %s joined (peer %d, entity %d). %d online." % [
-		display_name, peer_id, body.entity_id, _sessions.size()])
+	print("[server] %s joined (peer %d, entity %d, %s). %d online." % [display_name, peer_id, body.entity_id,
+		"character %d, %s" % [character_id, Advancement.rank_name(progress.rank)] if character_id >= 0 else "offline",
+		_sessions.size()])
 
 
 func _on_inputs(peer_id: int, inputs: Array[PlayerInput]) -> void:
@@ -290,6 +359,7 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 				_notify(session, error)
 				return
 			progress.craft(request.argument)
+			session.progress_dirty = true
 			progress.apply_to(session.body)
 			_send_progress(session)
 			_notify(session, "Crafted: %s" % Advancement.BINDINGS[request.argument].name)
@@ -299,6 +369,8 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 				_notify(session, error)
 				return
 			progress.advance()
+			session.progress_dirty = true
+			_save(session)  # Don't risk losing a breakthrough.
 			progress.apply_to(session.body)
 			session.body.health = session.body.max_health  # A breakthrough restores the body.
 			_send_progress(session)
@@ -313,10 +385,20 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 
 
 func _on_peer_disconnected(peer_id: int) -> void:
+	_joining.erase(peer_id)
 	var session: ClientSession = _sessions.get(peer_id)
-	if session == null:
-		return
+	if session:
+		_remove_session(session, true)
+
+
+## Takes a player out of the world. left_world: the character is going offline (final
+## save); false when a new connection is taking the character over.
+func _remove_session(session: ClientSession, left_world: bool) -> void:
+	var peer_id := session.peer_id
 	_sessions.erase(peer_id)
+	if backend and session.character_id >= 0 and left_world:
+		backend.request_json(HTTPClient.METHOD_POST, "/internal/characters/%d/left" % session.character_id,
+			{"progress": session.progress.to_dict()})
 	var entity_id := session.body.entity_id
 	_info.erase(entity_id)
 	_effects.remove_owned_by(entity_id)
@@ -324,7 +406,8 @@ func _on_peer_disconnected(peer_id: int) -> void:
 	_entities.remove_child(session.body)
 	session.body.queue_free()
 	_broadcast(Protocol.encode_entity_left(entity_id), true)
-	print("[server] %s left. %d online." % [session.display_name, _sessions.size()])
+	if left_world:
+		print("[server] %s left. %d online." % [session.display_name, _sessions.size()])
 
 
 func _reject(peer_id: int, reason: String) -> void:
@@ -332,6 +415,42 @@ func _reject(peer_id: int, reason: String) -> void:
 	await get_tree().create_timer(REJECT_GRACE_SECONDS).timeout
 	if multiplayer.multiplayer_peer:
 		multiplayer.multiplayer_peer.disconnect_peer(peer_id)
+
+
+# --- Backend ------------------------------------------------------------------------
+
+func _send_heartbeat() -> void:
+	var result := await backend.request_json(HTTPClient.METHOD_POST, "/internal/shards/heartbeat", {
+		"id": shard_id, "name": shard_name, "host": public_host, "port": _port,
+		"players": _sessions.size() + _joining.size(), "capacity": Protocol.MAX_PLAYERS,
+	})
+	if not result.ok:
+		push_warning("[server] Heartbeat failed: %s" % result.error)
+
+
+func _autosave() -> void:
+	for session: ClientSession in _sessions.values():
+		if session.progress_dirty:
+			_save(session)
+
+
+func _save(session: ClientSession) -> void:
+	if backend == null or session.character_id < 0:
+		return
+	session.progress_dirty = false
+	var result := await backend.request_json(HTTPClient.METHOD_PUT,
+		"/internal/characters/%d/progress" % session.character_id, {"progress": session.progress.to_dict()})
+	if not result.ok:
+		session.progress_dirty = true  # Try again at the next autosave.
+		push_warning("[server] Saving %s failed: %s" % [session.display_name, result.error])
+
+
+func _every(seconds: float, callback: Callable) -> void:
+	var timer := Timer.new()
+	timer.wait_time = seconds
+	timer.timeout.connect(callback)
+	add_child(timer)
+	timer.start()
 
 
 func _send_progress(session: ClientSession) -> void:

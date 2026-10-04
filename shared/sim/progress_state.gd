@@ -97,6 +97,24 @@ func apply_to(body: PlayerBody) -> void:
 	body.apply_stats(max_health(), madra_capacity(), technique_slots(), damage_mult(), knockback_taken_mult(), 1.0)
 
 
+## The saved form (stored as JSON by the backend).
+func to_dict() -> Dictionary:
+	return {"rank": rank, "essence": Array(essence), "bindings": Array(bindings)}
+
+
+## Tolerates missing or malformed fields (e.g. a brand-new character's empty save).
+static func from_dict(data: Dictionary) -> ProgressState:
+	var state := ProgressState.new()
+	state.rank = clampi(int(data.get("rank", 0)), 0, Advancement.RANKS.size() - 1)
+	var saved_essence: Array = data.get("essence", []) if data.get("essence") is Array else []
+	for aspect in mini(saved_essence.size(), state.essence.size()):
+		state.essence[aspect] = clampi(int(saved_essence[aspect]), 0, 0xFFFF)
+	var saved_bindings: Array = data.get("bindings", []) if data.get("bindings") is Array else []
+	for binding in mini(saved_bindings.size(), state.bindings.size()):
+		state.bindings[binding] = clampi(int(saved_bindings[binding]), 0, Advancement.BINDINGS[binding].max)
+	return state
+
+
 func encode(buf: StreamPeerBuffer) -> void:
 	buf.put_u8(rank)
 	for amount in essence:

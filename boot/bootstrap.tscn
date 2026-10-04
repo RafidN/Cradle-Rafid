@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://boot/bootstrap.gd" id="1_boot"]
+[ext_resource type="Script" path="res://boot/account_panel.gd" id="2_account"]
 
 [node name="Bootstrap" type="Node"]
 script = ExtResource("1_boot")
@@ -15,15 +16,30 @@ grow_horizontal = 2
 grow_vertical = 2
 color = Color(0.09, 0.1, 0.12, 1)
 
+[node name="AccountPanel" type="PanelContainer" parent="Menu"]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -400.0
+offset_top = -230.0
+offset_right = 0.0
+offset_bottom = 230.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("2_account")
+
 [node name="Panel" type="PanelContainer" parent="Menu"]
 anchors_preset = 8
 anchor_left = 0.5
 anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
-offset_left = -190.0
+offset_left = 20.0
 offset_top = -230.0
-offset_right = 190.0
+offset_right = 400.0
 offset_bottom = 230.0
 grow_horizontal = 2
 grow_vertical = 2
@@ -47,7 +63,7 @@ horizontal_alignment = 1
 
 [node name="Subtitle" type="Label" parent="Menu/Panel/Margin/VBox"]
 layout_mode = 2
-text = "M0 netcode test"
+text = "Direct connect (offline dev)"
 horizontal_alignment = 1
 
 [node name="NameEdit" type="LineEdit" parent="Menu/Panel/Margin/VBox"]

@@ -52,21 +52,21 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 ## 2. Architecture
 
 ```
-            ┌──────────────┐  HTTPS (login, char list, shard list)
-  Client ───┤  Backend API ├──── Postgres (accounts, characters, inventory)
+            ┌──────────────┐  HTTP (log in, characters, join → ticket + shard address)
+  Client ───┤  Backend API ├──── Postgres (accounts, sessions, characters, tickets, shards)
  (Godot)    └──────┬───────┘
-    │              │ internal API (verify session token, load/save character)
+    │              │ internal API (redeem ticket, save progress, heartbeat)
     │  ENet/UDP    │
     └──────► Zone Server (headless Godot, about 100 players)  × N shards
+         (HELLO carries the one-time join ticket)
 ```
 
 - **One Godot codebase** produces two exports:
   - The **client**.
   - A **headless dedicated server**, built with the `dedicated_server` feature tag and the `--headless` flag.
 - Code that runs on both sides lives in `shared/`: simulation, combat rules, data definitions and packet formats. This keeps the client's prediction and the server's simulation consistent with each other.
-- **Backend** (`backend/`) is a small separate service: REST API plus Postgres.
-  - It handles accounts, sessions, saved characters and the list of available shards.
-  - Zone servers check each player's session token with the backend and save characters back to it.
+- **Backend** (`backend/`) is a small TypeScript service on Node, with no framework, plus Postgres. See [Backend](#backend) below.
+  - It handles accounts, sessions, characters, join tickets, saved progression and the list of live shards.
   - Godot ignores this folder.
 
 ### Netcode design
@@ -162,6 +162,19 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 - **Authority:** the server owns progression. The client sends requests (craft, advance), and the server checks them and answers with a progress update and a notice. Progression is lost on disconnect until accounts and persistence arrive in M4.
 - **Fast testing:** start the server with `--essence-mult=6` to see the whole Foundation → Iron loop in a couple of minutes. Bots hunt beasts, claim remnants, craft and advance on their own.
 
+### Persistence implementation (M4)
+- **Joining works through one-time tickets:**
+  1. Log in to the backend and pick or create a character.
+  2. Ask to join. The backend returns a ticket and the address of the least-loaded live shard.
+  3. Connect to that shard and send the ticket in `HELLO`.
+  4. The shard redeems the ticket with the backend, which says which character this is and loads its progression.
+  
+  Game servers never see passwords or session tokens.
+- **Saving:** changed progression is saved every 10 s, immediately on a breakthrough, and when you leave.
+- **Takeover:** logging in again while your old connection still looks alive (for example after a crash) takes the character over on the same shard. Your unsaved progress comes with you.
+- **Dead connections:** they're dropped after about 10 s, down from ENet's ~30 s default.
+- **Offline mode:** a server started without `--backend` still runs offline. Anyone joins by name and nothing is saved. That's handy for quick tests and bots (`tools/run_local.sh`).
+
 ## 3. Project layout
 
 ```
@@ -218,7 +231,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
    - AI sacred beasts that run on the server.
    - Remnant drops and claiming, essence and bindings.
    - Advancement from Foundation to Copper to Iron.
-5. **M4: Persistence**
+5. ✅ **M4: Persistence**
    - The backend service: accounts, characters and inventory.
    - Token handoff to zone servers and autosave.
 6. **M5: Shards and zones**
@@ -230,12 +243,25 @@ Each milestone ends with something you can play and test over a simulated bad ne
 
 ## Running
 
+**Online (accounts and saving):** start the backend, a game server registered with it, and a client window on the login screen:
+
+```bash
+tools/run_dev.sh
+```
+
+Register an account, create a character, and enter the world. Saved data lives in `backend/data/`; delete that folder to start fresh. Pass a number for more client windows (`tools/run_dev.sh 2`).
+
+**Offline (no backend):** see the local test below.
+
 `boot/bootstrap.tscn` is the main scene. What it starts depends on the command-line arguments that come after `--`:
 
 | Arguments | Starts |
 |---|---|
 | *(none, windowed)* | A connect menu with Connect / Start Server and network simulation settings |
 | `--server [--port=7777]` | Server. A headless run or a `dedicated_server` export does the same thing without the flag. |
+| `--backend=URL` (server) | Online mode, plus `--server-secret=S --shard-id=ID --shard-name=N --public-host=H` |
+| `--backend=URL` (client) | Fill in the backend URL on the login screen |
+| `--account=user:pass --character=Name` | Log in (registering if needed), create the character if needed, and join. Use with `--bot` for automated online clients. |
 | `--connect=host[:port] [--name=X]` | A client that connects straight away |
 | `--latency=150 --jitter=20 --loss=5` | Simulated network on that client: extra RTT in ms, jitter in ms, packet loss in % |
 | `--bot` | A client that moves on its own and prints stats every 5 s. Works headless, so it's useful for load tests. |
@@ -250,7 +276,13 @@ Each milestone ends with something you can play and test over a simulated bad ne
 tools/run_local.sh 2 150 5 20
 ```
 
-**Tests** (combat, madra and cycling, techniques, progression, remnants, beast AI, input and progress encoding, rewind + replay matching straight simulation, and a check that every script compiles):
+**Backend tests** (accounts, characters, tickets, saving, rejoining, shard selection; uses in-memory Postgres):
+
+```bash
+cd backend && npm test
+```
+
+**Game tests** (combat, madra and cycling, techniques, progression, remnants, beast AI, input and progress encoding, rewind + replay matching straight simulation, and a check that every script compiles):
 
 ```bash
 /Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/test_combat.gd
@@ -267,3 +299,35 @@ The client's top-left overlay shows:
 - the active network simulation
 
 With a working network, corrections should stay at **0**. They only go up when every redundant copy of an input is lost, or when the server moves the player (for example on respawn).
+
+## Backend
+
+`backend/` is a small TypeScript service on Node 20+. Its only dependencies are `pg` and `@electric-sql/pglite`.
+
+| | Local development | Deployed |
+|---|---|---|
+| Run | `npm install && npm run dev` | `docker build` (see `Dockerfile`) or `npm run build && npm start` |
+| Database | Embedded [PGlite](https://pglite.dev): real Postgres in-process, stored in `backend/data/`. No Docker or install needed. | Any Postgres via `DATABASE_URL` |
+| Config | Defaults | `NODE_ENV=production`, `DATABASE_URL`, `SERVER_SECRET` (required), `PORT` |
+
+`docker compose up` in `backend/` runs the backend against a real Postgres container, the same way it runs when deployed. Tables are created automatically on startup.
+
+**API**
+- **Players:**
+  - `POST /auth/register`
+  - `POST /auth/login`
+  - `GET /characters` and `POST /characters`
+  - `POST /characters/:id/join` (returns a ticket and a shard)
+  - `GET /shards`
+  - `GET /health`
+- **Game servers** (`X-Server-Secret` header required):
+  - `POST /internal/shards/heartbeat`
+  - `POST /internal/tickets/redeem`
+  - `PUT /internal/characters/:id/progress`
+  - `POST /internal/characters/:id/left`
+
+**Not done yet:**
+- Rate limiting on login and registration.
+- Running behind HTTPS (put it behind a TLS proxy or a platform that terminates TLS).
+- Password reset.
+- Saving everyone when a game server shuts down cleanly. Today a crash can lose up to 10 s of progress.
