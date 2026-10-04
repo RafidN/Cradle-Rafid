@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "godot": {
+      "command": "node",
+      "args": ["/Users/rafidn/projects/godot-mcp/build/index.js"],
+      "env": {
+        "GODOT_PATH": "/Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot"
+      }
+    }
+  }
+}
