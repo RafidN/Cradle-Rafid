@@ -132,7 +132,7 @@ func _advance_projectile(projectile: Projectile, tick: int, bodies: Array, space
 				continue
 			var origin := projectile.position - projectile.velocity.normalized()
 			land_hit.call(caster, target, Combat.technique_spec(caster, projectile.technique), origin,
-				Techniques.ALL.find(projectile.technique))
+				projectile.technique.net_id)
 			return true
 		if projectile.travelled >= projectile.technique.max_range:
 			return true
@@ -154,7 +154,7 @@ func _check_trap(trap: Trap, bodies: Array) -> bool:
 			victims.append(target)
 	if victims.is_empty():
 		return false
-	var technique_id := Techniques.ALL.find(trap.technique)
+	var technique_id := trap.technique.net_id
 	burst.call(trap.owner_id, technique_id, trap.position)
 	for target: PlayerBody in victims:
 		land_hit.call(caster, target, Combat.technique_spec(caster, trap.technique), trap.position, technique_id)

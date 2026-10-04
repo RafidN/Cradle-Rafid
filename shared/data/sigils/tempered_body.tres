@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="SigilData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/sigil_data.gd" id="1_a687a"]
+
+[resource]
+script = ExtResource("1_a687a")
+display_name = "Tempered Body Sigil"
+description = "Earth and fire essence forged into a body sigil. Required to advance to Silver."
+cost = PackedInt32Array(20, 40, 0)
+obsolete_at_rank = 2
+id = &"tempered_body"
+net_id = 0

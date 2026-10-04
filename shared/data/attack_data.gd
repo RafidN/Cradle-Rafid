@@ -1,5 +1,5 @@
 class_name AttackData
-extends Resource
+extends ContentData
 ## Frame data for one attack. Ticks are server ticks (30 per second). An attack runs
 ## startup -> active (hitbox live) -> recovery, then the fighter is free again.
 
@@ -19,8 +19,8 @@ extends Resource
 @export var hitbox_offset := Vector3(0.0, 0.9, -1.0)
 ## Breaks through a block (the defender is staggered and takes part of the damage).
 @export var guard_break := false
-## Attack id a buffered light attack chains into during recovery, or -1.
-@export var combo_next := -1
+## Attack a buffered light attack chains into during recovery (an attack id), or empty.
+@export var combo_next: StringName
 
 
 func total_ticks() -> int:

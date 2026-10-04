@@ -1,15 +1,16 @@
 class_name Beasts
 extends RefCounted
-## Registry of spirit beast species; a species id is its index in ALL.
+## Every spirit beast species: shared/data/beasts/*.tres. The constants are net ids of
+## species the code refers to directly; a test checks they match the data.
 
 enum { EMBER_HOUND, STONEBACK_BOAR, GALE_FOX }
 
-const ALL := [
-	preload("res://shared/data/beasts/ember_hound.tres"),
-	preload("res://shared/data/beasts/stoneback_boar.tres"),
-	preload("res://shared/data/beasts/gale_fox.tres"),
-]
+static var registry := ContentRegistry.new("res://shared/data/beasts")
 
 
-static func get_beast(id: int) -> BeastData:
-	return ALL[id] if id >= 0 and id < ALL.size() else null
+static func get_beast(net_id: int) -> BeastData:
+	return registry.by_net_id(net_id) as BeastData
+
+
+static func by_id(id: StringName) -> BeastData:
+	return registry.by_id(id) as BeastData

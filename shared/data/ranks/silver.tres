@@ -1,0 +1,16 @@
+[gd_resource type="Resource" script_class="RankData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/rank_data.gd" id="1_t4440"]
+
+[resource]
+script = ExtResource("1_t4440")
+display_name = "Silver"
+max_health = 160
+max_spirit = 160
+technique_slots = 4
+damage_mult = 1.15
+knockback_taken_mult = 0.7
+essence_cost = 100
+required_sigil = &"tempered_body"
+id = &"silver"
+net_id = 2

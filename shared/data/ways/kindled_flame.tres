@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="WayData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/way_data.gd" id="1_cesan"]
+
+[resource]
+script = ExtResource("1_cesan")
+display_name = "Way of Kindled Flame"
+house_name = "Vaelor"
+techniques = Array[StringName]([&"flame_body", &"ember_lance", &"searing_ring", &"cinder_trap"])
+id = &"kindled_flame"
+net_id = 0

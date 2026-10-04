@@ -221,10 +221,10 @@ func _on_welcome(welcome: Dictionary) -> void:
 ## Loads the zone's map and draws its portals.
 func _load_zone(zone_id: String) -> void:
 	var zone := Zones.get_zone(zone_id)
-	if zone.is_empty():
+	if zone == null:
 		zone = Zones.get_zone(Zones.DEFAULT)
-	_world.add_child(load(zone.scene).instantiate())
-	for portal: Dictionary in zone.portals:
+	_world.add_child(load(zone.scene_path).instantiate())
+	for portal in zone.portals:
 		var ring := MeshInstance3D.new()
 		var mesh := TorusMesh.new()
 		mesh.inner_radius = portal.radius - 0.25
@@ -242,7 +242,7 @@ func _load_zone(zone_id: String) -> void:
 		label.pixel_size = 0.01
 		label.position = portal.position + Vector3.UP * (portal.radius * 2.0 + 0.8)
 		_world.add_child(label)
-	_hud.notify(zone.name)
+	_hud.notify(zone.display_name)
 
 
 func _on_snapshot(snapshot: Dictionary) -> void:
@@ -473,7 +473,8 @@ func _stats_text() -> String:
 ## its spirit runs low, so headless runs exercise every system.
 func _bot_input() -> PlayerInput:
 	var input := PlayerInput.new()
-	var portals: Array = Zones.get_zone(_zone_id).get("portals", [])
+	var zone := Zones.get_zone(_zone_id)
+	var portals: Array = zone.portals if zone else []
 	if bot_travel and _input_tick > 4 * Protocol.TICK_RATE and not portals.is_empty():
 		var offset: Vector3 = portals[0].position - _body.global_position
 		input.set_yaw(atan2(-offset.x, -offset.z))
@@ -521,22 +522,22 @@ func _bot_input() -> PlayerInput:
 	if distance > BOT_ATTACK_RANGE - 0.6:
 		input.set_move(Vector2(0.0, -1.0))
 	if distance > 5.0 and distance < 18.0 and phase % 50 == 0:
-		input.buttons |= PlayerInput.technique_button(Techniques.EMBER_LANCE)
+		input.buttons |= _technique_button(Techniques.EMBER_LANCE)
 	if distance <= BOT_ATTACK_RANGE:
 		if phase < 45 and phase % 6 == 0:
 			input.buttons |= PlayerInput.LIGHT
 		elif phase == 60:
 			input.buttons |= PlayerInput.HEAVY
 		elif phase == 75:
-			input.buttons |= PlayerInput.technique_button(Techniques.SEARING_RING)
+			input.buttons |= _technique_button(Techniques.SEARING_RING)
 		elif phase >= 85 and phase < 105:
 			input.buttons |= PlayerInput.BLOCK
 		elif phase == 110:
 			input.buttons |= PlayerInput.DODGE
 		elif phase == 120:
-			input.buttons |= PlayerInput.technique_button(Techniques.CINDER_TRAP)
+			input.buttons |= _technique_button(Techniques.CINDER_TRAP)
 		elif phase == 135 and not _body.enforcer_active:
-			input.buttons |= PlayerInput.technique_button(Techniques.FLAME_BODY)
+			input.buttons |= _technique_button(Techniques.FLAME_BODY)
 	return input
 
 
@@ -546,12 +547,18 @@ func _bot_progress() -> void:
 	if _bot_request_cooldown > 0:
 		return
 	_bot_request_cooldown = Protocol.TICK_RATE
-	for sigil in Advancement.SIGILS.size():
+	for sigil in Advancement.sigil_count():
 		if _progress.craft_error(sigil).is_empty():
 			_request_craft(sigil)
 			return
 	if _progress.advance_error(_body.action == PlayerBody.Action.MEDITATE).is_empty():
 		_request_advance()
+
+
+## The button that casts a technique (by net id) from our loadout, or 0.
+func _technique_button(technique_id: int) -> int:
+	var slot := _body.slot_of(technique_id)
+	return PlayerInput.technique_button(slot) if slot >= 0 else 0
 
 
 ## Nearest living remote fighter within range, optionally only of one kind (-1 = any).

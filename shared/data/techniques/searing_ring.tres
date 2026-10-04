@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="TechniqueData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TechniqueData" format=3]
 
 [ext_resource type="Script" path="res://shared/data/technique_data.gd" id="1_technique"]
 
@@ -8,13 +8,10 @@ display_name = "Searing Ring"
 kind = 2
 cost = 25
 startup = 14
-recovery = 10
 damage = 16
 hitstun = 16
 knockback = 7.0
 blockable = false
 radius = 4.0
-speed = 0.0
-max_range = 0.0
-arm_ticks = 0
-lifetime_ticks = 0
+id = &"searing_ring"
+net_id = 2

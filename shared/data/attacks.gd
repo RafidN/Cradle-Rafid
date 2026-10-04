@@ -1,16 +1,12 @@
 class_name Attacks
 extends RefCounted
-## Registry of every attack. An attack's id is its index in ALL; ids go over the network.
+## Every attack: shared/data/attacks/*.tres. The constants are net ids of attacks the code
+## refers to directly; a test checks they match the data.
 
 enum { LIGHT_1, LIGHT_2, LIGHT_3, HEAVY }
 
-const ALL := [
-	preload("res://shared/data/attacks/light_1.tres"),
-	preload("res://shared/data/attacks/light_2.tres"),
-	preload("res://shared/data/attacks/light_3.tres"),
-	preload("res://shared/data/attacks/heavy.tres"),
-]
+static var registry := ContentRegistry.new("res://shared/data/attacks")
 
 
-static func get_attack(id: int) -> AttackData:
-	return ALL[id] if id >= 0 and id < ALL.size() else null
+static func get_attack(net_id: int) -> AttackData:
+	return registry.by_net_id(net_id) as AttackData

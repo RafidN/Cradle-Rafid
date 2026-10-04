@@ -1,0 +1,96 @@
+[gd_resource type="Resource" script_class="ZoneData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/zone_den.gd" id="1_4qyyf"]
+[ext_resource type="Script" path="res://shared/data/zone_dummy.gd" id="2_e6vhs"]
+[ext_resource type="Script" path="res://shared/data/zone_portal.gd" id="3_83fxq"]
+[ext_resource type="Script" path="res://shared/data/zone_data.gd" id="4_b4hog"]
+
+[sub_resource type="Resource" id="Resource_w4pew"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(-30, 0.5, 40)
+
+[sub_resource type="Resource" id="Resource_yvdhx"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(-38, 0.5, 30)
+
+[sub_resource type="Resource" id="Resource_b6fo3"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(35, 0.5, 35)
+
+[sub_resource type="Resource" id="Resource_mr023"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(-55, 0.5, -10)
+
+[sub_resource type="Resource" id="Resource_4y7r7"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(-48, 0.5, -20)
+
+[sub_resource type="Resource" id="Resource_1sl2m"]
+script = ExtResource("1_4qyyf")
+species = &"ember_hound"
+position = Vector3(10, 0.5, 10)
+
+[sub_resource type="Resource" id="Resource_cenqx"]
+script = ExtResource("1_4qyyf")
+species = &"gale_fox"
+position = Vector3(50, 0.5, -5)
+
+[sub_resource type="Resource" id="Resource_4ypuo"]
+script = ExtResource("1_4qyyf")
+species = &"gale_fox"
+position = Vector3(58, 0.5, 8)
+
+[sub_resource type="Resource" id="Resource_ln58d"]
+script = ExtResource("1_4qyyf")
+species = &"gale_fox"
+position = Vector3(-20, 0.5, -45)
+
+[sub_resource type="Resource" id="Resource_apj0k"]
+script = ExtResource("1_4qyyf")
+species = &"gale_fox"
+position = Vector3(-10, 0.5, -55)
+
+[sub_resource type="Resource" id="Resource_npebq"]
+script = ExtResource("1_4qyyf")
+species = &"stoneback_boar"
+position = Vector3(40, 0.5, -45)
+
+[sub_resource type="Resource" id="Resource_y5rod"]
+script = ExtResource("1_4qyyf")
+species = &"stoneback_boar"
+position = Vector3(25, 0.5, -60)
+
+[sub_resource type="Resource" id="Resource_wv5wd"]
+script = ExtResource("1_4qyyf")
+species = &"stoneback_boar"
+position = Vector3(-60, 0.5, 55)
+
+[sub_resource type="Resource" id="Resource_go0ok"]
+script = ExtResource("1_4qyyf")
+species = &"stoneback_boar"
+position = Vector3(0, 0.5, -20)
+
+[sub_resource type="Resource" id="Resource_rh261"]
+script = ExtResource("3_83fxq")
+position = Vector3(0, 0, 73)
+to_zone = &"proving_grounds"
+to_spawn = "from_wilds"
+
+[resource]
+script = ExtResource("4_b4hog")
+display_name = "Ember Wilds"
+scene_path = "res://shared/world/ember_wilds.tscn"
+overview = 95.0
+spawns = {
+"default": Vector3(0, 0.5, 66),
+"from_grounds": Vector3(0, 0.5, 66)
+}
+portals = Array[ExtResource("3_83fxq")]([SubResource("Resource_rh261")])
+dens = Array[ExtResource("1_4qyyf")]([SubResource("Resource_w4pew"), SubResource("Resource_yvdhx"), SubResource("Resource_b6fo3"), SubResource("Resource_mr023"), SubResource("Resource_4y7r7"), SubResource("Resource_1sl2m"), SubResource("Resource_cenqx"), SubResource("Resource_4ypuo"), SubResource("Resource_ln58d"), SubResource("Resource_apj0k"), SubResource("Resource_npebq"), SubResource("Resource_y5rod"), SubResource("Resource_wv5wd"), SubResource("Resource_go0ok")])
+id = &"ember_wilds"
+net_id = 1

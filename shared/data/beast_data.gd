@@ -1,5 +1,5 @@
 class_name BeastData
-extends Resource
+extends ContentData
 ## A species of spirit beast: stats, how its brain fights, and the echo it leaves.
 
 @export var display_name := ""
@@ -27,10 +27,10 @@ extends Resource
 @export var heavy_weight := 1.0
 @export var dodge_weight := 0.0
 @export var close_technique_weight := 0.0
-## Technique cast in melee range (e.g. a stomp), or -1.
-@export var close_technique := -1
-## Technique cast between ranged_min and ranged_max, or -1.
-@export var ranged_technique := -1
+## Technique (id) cast in melee range, e.g. a stomp, or empty.
+@export var close_technique: StringName
+## Technique (id) cast between ranged_min and ranged_max, or empty.
+@export var ranged_technique: StringName
 @export var ranged_min := 5.0
 @export var ranged_max := 14.0
 @export var respawn_ticks := 600

@@ -5,7 +5,7 @@ Where the game is going, and the order to build it in. It's written for a **solo
 > **Status:**
 > - The lexicon (§4) is decided and applied.
 > - The plan was revised after an honest review (§2). It adds playtest gates, roles and build depth, combat feel, safety, Windows and Steam Deck support, and a marketing track.
-> - **Decisions still needed:** §6.
+> - **Decisions:** §6. All decided except the title.
 
 ---
 
@@ -297,24 +297,22 @@ The biggest variables are the art and animation pipeline, and whether any gate n
 
 ---
 
-## 6. Decisions still needed
+## 6. Decisions
 
-These are ordered by when they block work.
+Decided after the honest review, by accepting the recommendations:
 
-| # | Decision | Blocks | Recommendation |
-|---|---|---|---|
-| 1 | **Roles:** classic tank, healer and DPS; soft roles (anyone can contribute support, as in Guild Wars 2); or no roles, where everyone self-sustains | Phase 3 | **Soft roles.** Each discipline leans one way: Enforcer toward frontline and threat, Builder toward shields and heals through constructs, Controller toward crowd control and buffs, Lancer toward damage. A group of any composition can clear normal dungeons, and good role play makes harder modes possible. This fits action combat and small populations. |
-| 2 | **Rank cap at Early Access** | Phases 3–4 (content volume) | **Gold** (4 tiers), with Platinum and Diamond added in post-launch updates. That's about 10–15 hours of content to reach the cap, plus repeatable dungeons and arenas. Launching with all 6 tiers roughly doubles the content needed. |
-| 3 | **Open-world PvP:** fully open; flag to opt in; or only in contested zones | Phase 4 | **Safe cities and starter areas, contested wilds with opt-in flagging,** plus a few always-PvP zones with better rewards. That protects newcomers and still gives PvP players danger. |
-| 4 | **Death penalty** | Phase 4 | **Light:** respawn at a shrine, take temporary "spirit fatigue" (−10% to stats for 2 minutes), and drop an echo that someone else can claim but that holds none of your items. |
-| 5 | **Player trading and an auction house** | Phase 5 | **Trading and an auction house, with most dungeon loot bound to the character on pickup.** The economy exists, but the best gear is earned. |
-| 6 | **Business model** | Phase 8 (and the marketing track) | **Buy-to-play Early Access** (about $15–25), with only cosmetics after that. It deters bots, fits indie MMO expectations, and avoids pay-to-win. |
-| 7 | **Customization depth** | Phase 1 | **Presets plus colors** (face, hair and body presets; skin, hair and eye colors). Sliders can come later. |
-| 8 | **Target platforms** | Phase 0 | **Windows first, with the Steam Deck verified.** Linux and macOS clients are a nice-to-have; servers run on Linux. |
-| 9 | **Server region(s)** | Phase 8 | **One region at launch,** placed near most of the wishlist audience. Lag compensation already handles up to about 150 ms well. |
-| 10 | **Game title** | Store page (after Gate B) | — |
-
----
+| # | Decision | Decided |
+|---|---|---|
+| 1 | **Roles** | **Soft roles.** Each discipline leans one way: Enforcer toward frontline and threat, Builder toward shields and heals through constructs, Controller toward crowd control and buffs, Lancer toward damage. A group of any composition can clear normal dungeons; good role play makes harder modes possible. |
+| 2 | **Rank cap at Early Access** | **Gold** (4 tiers). Platinum and Diamond come in post-launch updates. That's about 10–15 hours to reach the cap, plus repeatable dungeons and arenas. |
+| 3 | **Open-world PvP** | **Safe cities and starter areas, contested wilds with opt-in flagging,** plus a few always-PvP zones with better rewards. |
+| 4 | **Death penalty** | **Light:** respawn at a shrine, take temporary spirit fatigue (−10% to stats for 2 minutes), and drop an echo that holds none of your items. |
+| 5 | **Trading** | **Trading and an auction house,** with most dungeon loot bound to the character on pickup. |
+| 6 | **Business model** | **Buy-to-play Early Access** (about $15–25), with cosmetics only after that. Never pay-to-win. |
+| 7 | **Customization depth** | **Presets plus colors** at first; sliders later. |
+| 8 | **Target platforms** | **Windows first, with the Steam Deck verified.** Linux servers. Other client platforms are a nice-to-have. |
+| 9 | **Server regions** | **One region at launch,** near most of the wishlist audience. |
+| 10 | **Game title** | *Still to be decided.* Needed before the store page (after Gate B). |
 
 ## 7. Scope levers (if time runs long)
 

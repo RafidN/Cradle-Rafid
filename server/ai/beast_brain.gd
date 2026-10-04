@@ -94,15 +94,16 @@ func _hunt(input: PlayerInput, target: PlayerBody) -> void:
 	if distance <= data.attack_range:
 		_choose_melee()
 		_run_queue(input)
-	elif data.ranged_technique >= 0 and distance >= data.ranged_min and distance <= data.ranged_max and _rng.randf() < 0.03:
-		_queue.append([0, PlayerInput.technique_button(data.ranged_technique), Vector2.ZERO])
+	elif _technique_button(data.ranged_technique) != 0 and distance >= data.ranged_min \
+			and distance <= data.ranged_max and _rng.randf() < 0.03:
+		_queue.append([0, _technique_button(data.ranged_technique), Vector2.ZERO])
 		_cooldown = _rng.randi_range(data.attack_cooldown.x, data.attack_cooldown.y)
 		_run_queue(input)
 
 
 func _choose_melee() -> void:
 	var weights := [data.combo_weight, data.heavy_weight, data.dodge_weight,
-		data.close_technique_weight if data.close_technique >= 0 else 0.0]
+		data.close_technique_weight if _technique_button(data.close_technique) != 0 else 0.0]
 	var pick := _rng.rand_weighted(PackedFloat32Array(weights))
 	match pick:
 		0:
@@ -114,8 +115,14 @@ func _choose_melee() -> void:
 			var side := -1.0 if _rng.randf() < 0.5 else 1.0
 			_queue.append([0, PlayerInput.DODGE, Vector2(side, 0.6).normalized()])
 		3:
-			_queue.append([0, PlayerInput.technique_button(data.close_technique), Vector2.ZERO])
+			_queue.append([0, _technique_button(data.close_technique), Vector2.ZERO])
 	_cooldown = _rng.randi_range(data.attack_cooldown.x, data.attack_cooldown.y)
+
+
+## The input button that casts a technique (by id) from the beast's loadout, or 0.
+func _technique_button(technique_id: StringName) -> int:
+	var slot := body.slot_of(Techniques.registry.net_id_of(technique_id))
+	return PlayerInput.technique_button(slot) if slot >= 0 else 0
 
 
 func _run_queue(input: PlayerInput) -> void:

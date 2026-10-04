@@ -1,11 +1,11 @@
 class_name TechniqueData
-extends Resource
+extends ContentData
 ## A Way technique. Casting spends spirit at the start, then runs startup -> release ->
 ## recovery like an attack. What happens on release depends on the kind:
-##   ENFORCER  toggles a self-buff that drains spirit while active
-##   LANCER   fires a projectile
-##   CONTROLLER     hits everything within radius around the caster (can't be blocked)
-##   BUILDER    places a construct (a trap) that persists in the world
+##   ENFORCER    toggles a self-buff that drains spirit while active
+##   LANCER      fires a projectile
+##   CONTROLLER  hits everything within radius around the caster (can't be blocked)
+##   BUILDER     places a construct (a trap) that persists in the world
 
 enum Kind { ENFORCER, LANCER, CONTROLLER, BUILDER }
 

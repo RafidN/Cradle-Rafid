@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AttackData" format=3]
 
 [ext_resource type="Script" path="res://shared/data/attack_data.gd" id="1_attack"]
 
@@ -6,13 +6,10 @@
 script = ExtResource("1_attack")
 display_name = "Light 2"
 startup = 5
-active = 3
 recovery = 6
 damage = 9
-hitstun = 12
 knockback = 2.5
 lunge_speed = 2.5
-hitbox_size = Vector3(1.8, 1.2, 1.6)
-hitbox_offset = Vector3(0, 0.9, -1)
-guard_break = false
-combo_next = 2
+combo_next = &"light_3"
+id = &"light_2"
+net_id = 1

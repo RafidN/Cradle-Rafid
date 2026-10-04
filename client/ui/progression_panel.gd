@@ -41,7 +41,7 @@ func _ready() -> void:
 	sigils_title.text = "Sigils"
 	sigils_title.add_theme_font_size_override("font_size", 18)
 	column.add_child(sigils_title)
-	for sigil in Advancement.SIGILS.size():
+	for sigil in Advancement.sigil_count():
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -68,17 +68,18 @@ func _ready() -> void:
 
 
 func show_progress(progress: ProgressState, meditating: bool) -> void:
-	var rank: Dictionary = Advancement.RANKS[progress.rank]
+	var rank := Advancement.rank(progress.rank)
 	_rank_label.text = "%s  —  %d HP, %d spirit, %d techniques" % [
-		rank.name, progress.max_health(), progress.spirit_capacity() / PlayerBody.SPIRIT_SCALE, rank.technique_slots]
+		rank.display_name, progress.max_health(), progress.spirit_capacity() / PlayerBody.SPIRIT_SCALE, rank.technique_slots]
 
-	var has_next := progress.rank + 1 < Advancement.RANKS.size()
+	var has_next := progress.rank + 1 < Advancement.rank_count()
 	if has_next:
-		var next: Dictionary = Advancement.RANKS[progress.rank + 1]
-		var needs := "%d essence (you have %d)" % [next.essence, progress.total_essence()]
-		if next.sigil >= 0:
-			needs += " and a %s" % Advancement.SIGILS[next.sigil].name
-		_next_label.text = "Next: %s needs %s." % [next.name, needs]
+		var next := Advancement.rank(progress.rank + 1)
+		var needs := "%d essence (you have %d)" % [next.essence_cost, progress.total_essence()]
+		var required := Advancement.sigils.net_id_of(next.required_sigil)
+		if required >= 0:
+			needs += " and a %s" % Advancement.sigil(required).display_name
+		_next_label.text = "Next: %s needs %s." % [next.display_name, needs]
 	else:
 		_next_label.text = "You stand at the peak of what this world allows. For now."
 
@@ -88,13 +89,13 @@ func show_progress(progress: ProgressState, meditating: bool) -> void:
 	_essence_label.text = "\n".join(lines)
 
 	for sigil in _sigil_rows.size():
-		var info: Dictionary = Advancement.SIGILS[sigil]
+		var info := Advancement.sigil(sigil)
 		var cost := PackedStringArray()
 		for aspect in info.cost.size():
 			if info.cost[aspect] > 0:
 				cost.append("%d %s" % [info.cost[aspect], Advancement.ASPECT_NAMES[aspect].to_lower()])
 		var row: Dictionary = _sigil_rows[sigil]
-		row.label.text = "%s (%d/%d)\n%s\nCost: %s" % [info.name, progress.sigils[sigil], info.max,
+		row.label.text = "%s (%d/%d)\n%s\nCost: %s" % [info.display_name, progress.sigils[sigil], info.max_count,
 			info.description, ", ".join(cost)]
 		var error := progress.craft_error(sigil)
 		row.button.disabled = not error.is_empty()

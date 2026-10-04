@@ -14,6 +14,7 @@ const NOTICE_SECONDS := 5.0
 const MAX_NOTICES := 4
 
 var _slots: Array[Label] = []
+var _shown_loadout := PackedInt32Array()
 var _spirit_fill := StyleBoxFlat.new()
 var _last_flow := 0
 var _last_breath_beat := 0
@@ -40,10 +41,21 @@ var _notices: Array[Dictionary] = []  # {text, time_left}
 func _ready() -> void:
 	_spirit_fill.bg_color = SPIRIT_COLOR
 	_spirit_bar.add_theme_stylebox_override("fill", _spirit_fill)
-	for slot in Techniques.ALL.size():
-		var technique := Techniques.get_technique(slot)
+
+
+## One label per technique slot, rebuilt whenever the fighter's loadout changes.
+func _build_technique_bar(loadout: PackedInt32Array) -> void:
+	_shown_loadout = loadout.duplicate()
+	for label in _slots:
+		label.queue_free()
+	_slots.clear()
+	for slot in loadout.size():
+		var technique := Techniques.get_technique(loadout[slot])
+		if technique == null:
+			continue
 		var label := Label.new()
 		label.set_meta("text", "[%s] %s  %d" % [TECHNIQUE_KEYS[slot], technique.display_name, technique.cost])
+		label.set_meta("technique", loadout[slot])
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
 		label.add_theme_constant_override("outline_size", 4)
 		_technique_bar.add_child(label)
@@ -69,8 +81,10 @@ func show_fighter(body: PlayerBody) -> void:
 		status.append("Meditating  —  flow %d  (+%.1f spirit/s)" % [body.flow, per_second])
 	_status_label.text = "   ".join(status)
 
+	if body.loadout != _shown_loadout:
+		_build_technique_bar(body.loadout)
 	for slot in _slots.size():
-		var technique := Techniques.get_technique(slot)
+		var technique := Techniques.get_technique(_slots[slot].get_meta("technique"))
 		var color := SLOT_READY
 		var locked := slot >= body.technique_slots
 		_slots[slot].text = _slots[slot].get_meta("text") + (

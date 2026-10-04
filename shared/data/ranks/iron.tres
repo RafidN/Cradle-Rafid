@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RankData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/rank_data.gd" id="1_m1b0v"]
+
+[resource]
+script = ExtResource("1_m1b0v")
+display_name = "Iron"
+id = &"iron"
+net_id = 0

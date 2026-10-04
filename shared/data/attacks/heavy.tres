@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="AttackData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="AttackData" format=3]
 
 [ext_resource type="Script" path="res://shared/data/attack_data.gd" id="1_attack"]
 
@@ -15,4 +15,5 @@ lunge_speed = 2.5
 hitbox_size = Vector3(2.2, 1.6, 1.8)
 hitbox_offset = Vector3(0, 0.9, -1.1)
 guard_break = true
-combo_next = -1
+id = &"heavy"
+net_id = 3

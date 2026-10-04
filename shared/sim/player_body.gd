@@ -88,6 +88,8 @@ var max_health := MAX_HEALTH
 var spirit_capacity := MAX_SPIRIT
 ## Technique slots 0..technique_slots-1 can be cast.
 var technique_slots := PlayerInput.TECHNIQUE_COUNT
+## Technique net ids by slot, from the practitioner's Way.
+var loadout := Ways.loadout(Ways.DEFAULT)
 var damage_mult := 1.0
 var knockback_taken_mult := 1.0
 var speed_mult := 1.0
@@ -223,6 +225,11 @@ func visual_flags() -> int:
 ## Whether a technique slot could be cast right now, ignoring cost (overdrawing is allowed).
 func can_cast() -> bool:
 	return not is_exhausted() and spirit > 0
+
+
+## The slot holding a technique (by net id), or -1 if it isn't in the loadout.
+func slot_of(technique_id: int) -> int:
+	return loadout.find(technique_id)
 
 
 func forward() -> Vector3:
@@ -374,9 +381,9 @@ func _try_start_buffered(input: PlayerInput, direction: Vector3, from_attack: bo
 	elif buffered & PlayerInput.TECHNIQUE_MASK:
 		_try_cast(PlayerInput.technique_slot(buffered), input, direction)
 	elif buffered == PlayerInput.LIGHT:
-		var next := Attacks.LIGHT_1
+		var next: int = Attacks.LIGHT_1
 		if from_attack:
-			next = Attacks.get_attack(action_id).combo_next
+			next = Attacks.registry.net_id_of(Attacks.get_attack(action_id).combo_next)
 		if next >= 0:
 			_start_attack(next, input, direction)
 	elif buffered == PlayerInput.HEAVY:
@@ -399,11 +406,14 @@ func _start_attack(id: int, input: PlayerInput, _direction: Vector3) -> void:
 
 ## Casting spends spirit up front. Overdrawing is allowed: the technique still goes off,
 ## but the pool empties and the practitioner is exhausted. Turning an Enforcer off is free.
-func _try_cast(technique_id: int, input: PlayerInput, _direction: Vector3) -> void:
+func _try_cast(slot: int, input: PlayerInput, _direction: Vector3) -> void:
 	_consume_buffer()
+	if slot < 0 or slot >= technique_slots or slot >= loadout.size():
+		return  # Not unlocked at this rank, or the Way has no technique there.
+	var technique_id := loadout[slot]
 	var technique := Techniques.get_technique(technique_id)
-	if technique == null or technique_id >= technique_slots:
-		return  # Not unlocked at this rank.
+	if technique == null:
+		return
 	var toggling_off := technique.kind == TechniqueData.Kind.ENFORCER and enforcer_active
 	if not toggling_off:
 		if not can_cast():

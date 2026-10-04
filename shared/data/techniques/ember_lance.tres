@@ -1,20 +1,17 @@
-[gd_resource type="Resource" script_class="TechniqueData" load_steps=2 format=3]
+[gd_resource type="Resource" script_class="TechniqueData" format=3]
 
 [ext_resource type="Script" path="res://shared/data/technique_data.gd" id="1_technique"]
 
 [resource]
 script = ExtResource("1_technique")
 display_name = "Ember Lance"
-kind = 1
 cost = 15
 startup = 9
 recovery = 8
 damage = 12
 hitstun = 10
 knockback = 3.0
-blockable = true
-radius = 0.0
 speed = 24.0
 max_range = 22.0
-arm_ticks = 0
-lifetime_ticks = 0
+id = &"ember_lance"
+net_id = 1

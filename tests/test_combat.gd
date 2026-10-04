@@ -53,7 +53,8 @@ func _run() -> void:
 	_test_beast_brain()
 	_test_interest()
 	_test_remote_entry_encoding()
-	_test_zone_data()
+	_test_content_data()
+	_test_save_migration()
 
 	print("\n%s" % ("ALL TESTS PASSED" if _failures == 0 else "%d FAILURE(S)" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -479,7 +480,8 @@ func _test_rank_stats() -> void:
 	progress.apply_to(body)
 	body.respawn(Vector3.ZERO, 0.0)
 	_check(body.max_health == 160 and body.health == 160, "Silver raises max health")
-	_check(body.spirit_capacity == (160 + 2 * Advancement.KINDLED_CORE_SPIRIT) * PlayerBody.SPIRIT_SCALE,
+	var core_bonus := Advancement.sigil(Advancement.Sigil.KINDLED_CORE).spirit_capacity_bonus
+	_check(core_bonus > 0 and body.spirit_capacity == (160 + 2 * core_bonus) * PlayerBody.SPIRIT_SCALE,
 		"Kindled Cores add spirit capacity")
 	for i in 30:
 		_step(body, _input())
@@ -633,22 +635,98 @@ func _test_remote_entry_encoding() -> void:
 	_free([body, snapshot_body])
 
 
-func _test_zone_data() -> void:
-	var problems := []
-	for zone_id: String in Zones.ALL:
-		var zone: Dictionary = Zones.ALL[zone_id]
-		if not ResourceLoader.exists(zone.scene):
-			problems.append("%s: missing scene" % zone_id)
+## Every piece of content loads, has unique ids, and every reference between content
+## (combo chains, beast techniques, rank sigils, Way techniques, zone dens and portals)
+## points at something that exists.
+func _test_content_data() -> void:
+	var problems := PackedStringArray()
+	var registries := {"attacks": Attacks.registry, "techniques": Techniques.registry, "beasts": Beasts.registry,
+		"ranks": Advancement.ranks, "sigils": Advancement.sigils, "ways": Ways.registry, "zones": Zones.registry}
+	for kind: String in registries:
+		var registry: ContentRegistry = registries[kind]
+		problems.append_array(registry.errors)
+		if registry.size() == 0:
+			problems.append("no %s found" % kind)
+	# Ranks and sigils are indexed by net id, so their net ids must run 0, 1, 2...
+	for kind in ["ranks", "sigils"]:
+		var registry: ContentRegistry = registries[kind]
+		for i in registry.size():
+			if registry.all[i].net_id != i:
+				problems.append("%s net ids must run 0..%d without gaps" % [kind, registry.size() - 1])
+				break
+
+	# Constants the code uses must name the right content.
+	var named := {
+		Attacks.registry: {Attacks.LIGHT_1: &"light_1", Attacks.LIGHT_2: &"light_2", Attacks.LIGHT_3: &"light_3", Attacks.HEAVY: &"heavy"},
+		Techniques.registry: {Techniques.FLAME_BODY: &"flame_body", Techniques.EMBER_LANCE: &"ember_lance",
+			Techniques.SEARING_RING: &"searing_ring", Techniques.CINDER_TRAP: &"cinder_trap"},
+		Beasts.registry: {Beasts.EMBER_HOUND: &"ember_hound", Beasts.STONEBACK_BOAR: &"stoneback_boar", Beasts.GALE_FOX: &"gale_fox"},
+		Advancement.ranks: {Advancement.Rank.IRON: &"iron", Advancement.Rank.BRONZE: &"bronze", Advancement.Rank.SILVER: &"silver"},
+		Advancement.sigils: {Advancement.Sigil.TEMPERED_BODY: &"tempered_body", Advancement.Sigil.KINDLED_CORE: &"kindled_core"},
+	}
+	for registry: ContentRegistry in named:
+		for net_id: int in named[registry]:
+			var item := registry.by_net_id(net_id)
+			if item == null or item.id != named[registry][net_id]:
+				problems.append("%s: net id %d should be '%s'" % [registry.folder, net_id, named[registry][net_id]])
+
+	for attack: AttackData in Attacks.registry.all:
+		if attack.combo_next != &"" and Attacks.registry.by_id(attack.combo_next) == null:
+			problems.append("attack %s chains into unknown '%s'" % [attack.id, attack.combo_next])
+	for beast: BeastData in Beasts.registry.all:
+		for technique_id in [beast.close_technique, beast.ranged_technique]:
+			if technique_id != &"" and Techniques.registry.by_id(technique_id) == null:
+				problems.append("beast %s uses unknown technique '%s'" % [beast.id, technique_id])
+			elif technique_id != &"" and not Ways.loadout(Ways.DEFAULT).has(Techniques.registry.net_id_of(technique_id)):
+				problems.append("beast %s uses '%s', which isn't in the beasts' loadout" % [beast.id, technique_id])
+	for rank: RankData in Advancement.ranks.all:
+		if rank.required_sigil != &"" and Advancement.sigils.by_id(rank.required_sigil) == null:
+			problems.append("rank %s requires unknown sigil '%s'" % [rank.id, rank.required_sigil])
+	for sigil: SigilData in Advancement.sigils.all:
+		if sigil.cost.size() != Advancement.ASPECT_NAMES.size():
+			problems.append("sigil %s needs a cost for each aspect" % sigil.id)
+	for way: WayData in Ways.registry.all:
+		if way.techniques.size() != PlayerInput.TECHNIQUE_COUNT:
+			problems.append("way %s needs %d techniques" % [way.id, PlayerInput.TECHNIQUE_COUNT])
+		for technique_id in way.techniques:
+			if Techniques.registry.by_id(technique_id) == null:
+				problems.append("way %s teaches unknown technique '%s'" % [way.id, technique_id])
+	if Ways.get_way(Ways.DEFAULT) == null:
+		problems.append("the default Way '%s' doesn't exist" % Ways.DEFAULT)
+
+	if Zones.get_zone(Zones.DEFAULT) == null:
+		problems.append("the default zone '%s' doesn't exist" % Zones.DEFAULT)
+	for zone: ZoneData in Zones.registry.all:
+		if not ResourceLoader.exists(zone.scene_path):
+			problems.append("zone %s: missing scene" % zone.id)
 		if not zone.spawns.has("default"):
-			problems.append("%s: no default spawn" % zone_id)
-		for portal: Dictionary in zone.portals:
+			problems.append("zone %s: no default spawn" % zone.id)
+		for den in zone.dens:
+			if Beasts.by_id(den.species) == null:
+				problems.append("zone %s: den for unknown species '%s'" % [zone.id, den.species])
+		for portal in zone.portals:
 			var target := Zones.get_zone(portal.to_zone)
-			if target.is_empty() or not target.spawns.has(portal.to_spawn):
-				problems.append("%s: portal to unknown %s/%s" % [zone_id, portal.to_zone, portal.to_spawn])
+			if target == null or not target.spawns.has(portal.to_spawn):
+				problems.append("zone %s: portal to unknown %s/%s" % [zone.id, portal.to_zone, portal.to_spawn])
 			for spawn: Vector3 in zone.spawns.values():
 				if Vector2(spawn.x - portal.position.x, spawn.z - portal.position.z).length() < portal.radius + 3.0:
-					problems.append("%s: a spawn point is inside a portal" % zone_id)
-	_check(problems.is_empty(), "zones are consistent%s" % ("" if problems.is_empty() else " %s" % [problems]))
+					problems.append("zone %s: a spawn point is inside a portal" % zone.id)
+	_check(problems.is_empty(), "content is consistent%s" % ("" if problems.is_empty() else " %s" % [problems]))
+
+
+func _test_save_migration() -> void:
+	var old := {"rank": 1, "essence": [5, 6, 7], "sigils": [1, 2]}  # A version 1 save.
+	var migrated := ProgressState.from_dict(old)
+	_check(migrated.rank == Advancement.Rank.BRONZE and migrated.essence == PackedInt32Array([5, 6, 7])
+		and migrated.sigils[Advancement.Sigil.TEMPERED_BODY] == 1 and migrated.sigils[Advancement.Sigil.KINDLED_CORE] == 2,
+		"version 1 saves load (rank and sigils by position)")
+	var saved := migrated.to_dict()
+	_check(saved.version == ProgressState.SAVE_VERSION and saved.rank == "bronze" and saved.sigils.get("kindled_core") == 2,
+		"saves store ranks and sigils by id")
+	var reloaded := ProgressState.from_dict(JSON.parse_string(JSON.stringify(saved)))
+	_check(reloaded.rank == migrated.rank and reloaded.sigils == migrated.sigils and reloaded.essence == migrated.essence,
+		"a save survives a round trip through JSON")
+	_check(ProgressState.from_dict({}).rank == Advancement.Rank.IRON, "an empty save is a new Iron practitioner")
 
 
 # --- Helpers ------------------------------------------------------------------------

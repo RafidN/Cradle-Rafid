@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="SigilData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/sigil_data.gd" id="1_iblvg"]
+
+[resource]
+script = ExtResource("1_iblvg")
+display_name = "Kindled Core Sigil"
+description = "Fire essence bound into the core: +15 spirit capacity."
+cost = PackedInt32Array(30, 0, 0)
+max_count = 2
+spirit_capacity_bonus = 15
+id = &"kindled_core"
+net_id = 1

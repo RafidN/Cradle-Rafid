@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="RankData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/rank_data.gd" id="1_qxlwu"]
+
+[resource]
+script = ExtResource("1_qxlwu")
+display_name = "Bronze"
+max_health = 115
+max_spirit = 140
+technique_slots = 3
+damage_mult = 1.05
+essence_cost = 60
+id = &"bronze"
+net_id = 1

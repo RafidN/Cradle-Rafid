@@ -1,0 +1,57 @@
+[gd_resource type="Resource" script_class="ZoneData" format=3]
+
+[ext_resource type="Script" path="res://shared/data/zone_den.gd" id="1_peysy"]
+[ext_resource type="Script" path="res://shared/data/zone_dummy.gd" id="2_8jpgh"]
+[ext_resource type="Script" path="res://shared/data/zone_portal.gd" id="3_bb03o"]
+[ext_resource type="Script" path="res://shared/data/zone_data.gd" id="4_0qtlf"]
+
+[sub_resource type="Resource" id="Resource_43w2y"]
+script = ExtResource("1_peysy")
+species = &"ember_hound"
+position = Vector3(-18, 0.5, 14)
+
+[sub_resource type="Resource" id="Resource_6dela"]
+script = ExtResource("1_peysy")
+species = &"ember_hound"
+position = Vector3(-22, 0.5, 20)
+
+[sub_resource type="Resource" id="Resource_1bul2"]
+script = ExtResource("1_peysy")
+species = &"gale_fox"
+position = Vector3(-20, 0.5, -18)
+
+[sub_resource type="Resource" id="Resource_3dndp"]
+script = ExtResource("1_peysy")
+species = &"gale_fox"
+position = Vector3(18, 0.5, 18)
+
+[sub_resource type="Resource" id="Resource_3o1c8"]
+script = ExtResource("2_8jpgh")
+position = Vector3(-3, 0.5, -3)
+
+[sub_resource type="Resource" id="Resource_fjh3k"]
+script = ExtResource("2_8jpgh")
+display_name = "Guarding Dummy"
+position = Vector3(3, 0.5, -3)
+block = true
+
+[sub_resource type="Resource" id="Resource_gev8n"]
+script = ExtResource("3_bb03o")
+position = Vector3(0, 0, -27.5)
+to_zone = &"ember_wilds"
+to_spawn = "from_grounds"
+
+[resource]
+script = ExtResource("4_0qtlf")
+display_name = "Proving Grounds"
+scene_path = "res://shared/world/test_arena.tscn"
+overview = 28.0
+spawns = {
+"default": Vector3(0, 0.5, 4),
+"from_wilds": Vector3(0, 0.5, -21)
+}
+portals = Array[ExtResource("3_bb03o")]([SubResource("Resource_gev8n")])
+dummies = Array[ExtResource("2_8jpgh")]([SubResource("Resource_3o1c8"), SubResource("Resource_fjh3k")])
+dens = Array[ExtResource("1_peysy")]([SubResource("Resource_43w2y"), SubResource("Resource_6dela"), SubResource("Resource_1bul2"), SubResource("Resource_3dndp")])
+id = &"proving_grounds"
+net_id = 0

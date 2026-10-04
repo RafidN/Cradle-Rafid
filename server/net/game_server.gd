@@ -93,7 +93,7 @@ var _echoes := EchoField.new()
 var _tick := 0
 var _next_entity_id := 1
 var _port := 0
-var _zone: Dictionary
+var _zone: ZoneData
 # Stats since the last report.
 var _tick_usec_total := 0
 var _tick_usec_max := 0
@@ -113,11 +113,11 @@ var _bytes_received_reported := 0
 
 func start(port: int) -> Error:
 	_zone = Zones.get_zone(zone_id)
-	if _zone.is_empty():
+	if _zone == null:
 		push_error("Unknown zone '%s'" % zone_id)
 		return ERR_INVALID_PARAMETER
-	_world.add_child(load(_zone.scene).instantiate())
-	var extent: float = _zone.get("overview", 30.0)
+	_world.add_child(load(_zone.scene_path).instantiate())
+	var extent := _zone.overview
 	_overview_camera.position = Vector3(0.0, extent, extent)
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, Protocol.MAX_PLAYERS)
@@ -138,7 +138,7 @@ func start(port: int) -> Error:
 	_spawn_dummies()
 	_spawn_beasts()
 	print("[server] %s listening on UDP port %d (protocol v%d, %d Hz)" % [
-		_zone.name, port, Protocol.VERSION, Protocol.TICK_RATE])
+		_zone.display_name, port, Protocol.VERSION, Protocol.TICK_RATE])
 	if log_stats:
 		_every(STATS_SECONDS, _report_stats)
 	if backend:
@@ -190,7 +190,7 @@ func _physics_process(delta: float) -> void:
 	_phase("snapshots")
 	if _tick % Protocol.TICK_RATE == 0:
 		_status.text = "SERVER  |  %s  |  port %d  |  tick %d  |  %d / %d players  |  %d echoes" % [
-			_zone.name, _port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _echoes.count()]
+			_zone.display_name, _port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _echoes.count()]
 	var elapsed := Time.get_ticks_usec() - started
 	_tick_usec_total += elapsed
 	_tick_usec_max = maxi(_tick_usec_max, elapsed)
@@ -431,7 +431,7 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 			session.progress_dirty = true
 			progress.apply_to(session.body)
 			_send_progress(session)
-			_notify(session, "Crafted: %s" % Advancement.SIGILS[request.argument].name)
+			_notify(session, "Crafted: %s" % Advancement.sigil(request.argument).display_name)
 		Protocol.Request.ADVANCE:
 			var error := progress.advance_error(session.body.action == PlayerBody.Action.MEDITATE)
 			if not error.is_empty():
@@ -495,7 +495,7 @@ func _check_portals() -> void:
 	for session: ClientSession in _sessions.values():
 		if session.transferring or session.body.is_dead():
 			continue
-		for portal: Dictionary in _zone.portals:
+		for portal in _zone.portals:
 			var offset: Vector3 = session.body.global_position - portal.position
 			if Vector2(offset.x, offset.z).length() > portal.radius:
 				continue
@@ -506,7 +506,7 @@ func _check_portals() -> void:
 			_transfer(session, portal)
 
 
-func _transfer(session: ClientSession, portal: Dictionary) -> void:
+func _transfer(session: ClientSession, portal: ZonePortal) -> void:
 	session.transferring = true
 	var destination := Zones.display_name(portal.to_zone)
 	_notify(session, "Traveling to %s..." % destination)
@@ -545,7 +545,7 @@ func _report_stats() -> void:
 	_bytes_received_reported = _transport.bytes_received
 	var players := _sessions.size()
 	print("[stats] %s | %d players, %d fighters | tick avg %.2f ms, max %.2f ms (budget %.1f) | out %.1f KB/s (%.1f per player) | in %.1f KB/s" % [
-		_zone.name, players, _entities.get_child_count(),
+		_zone.display_name, players, _entities.get_child_count(),
 		_tick_usec_total / 1000.0 / maxi(_ticks_measured, 1), _tick_usec_max / 1000.0, 1000.0 / Protocol.TICK_RATE,
 		sent / 1024.0 / seconds, sent / 1024.0 / seconds / maxi(players, 1), received / 1024.0 / seconds])
 	var phases := PackedStringArray()
@@ -605,10 +605,10 @@ func _notify(session: ClientSession, text: String) -> void:
 # --- Fighters -----------------------------------------------------------------------
 
 func _spawn_dummies() -> void:
-	for config: Dictionary in _zone.dummies:
+	for config in _zone.dummies:
 		var dummy := Dummy.new()
 		dummy.home = config.position
-		dummy.body = _spawn_body(config.name, Protocol.EntityKind.DUMMY, -1)
+		dummy.body = _spawn_body(config.display_name, Protocol.EntityKind.DUMMY, -1)
 		dummy.body.respawn(dummy.home, DUMMY_FACING)
 		dummy.input.set_yaw(DUMMY_FACING)  # Fighters turn to face their input yaw.
 		if config.block:
@@ -617,11 +617,14 @@ func _spawn_dummies() -> void:
 
 
 func _spawn_beasts() -> void:
-	for den: Dictionary in _zone.dens:
-		var data := Beasts.get_beast(den.species)
+	for den in _zone.dens:
+		var data := Beasts.by_id(den.species)
+		if data == null:
+			push_error("Zone '%s' has a den for unknown species '%s'" % [zone_id, den.species])
+			continue
 		var beast := Beast.new()
-		beast.species = den.species
-		beast.body = _spawn_body(data.display_name, Protocol.EntityKind.BEAST, den.species)
+		beast.species = data.net_id
+		beast.body = _spawn_body(data.display_name, Protocol.EntityKind.BEAST, data.net_id)
 		beast.body.apply_stats(data.max_health, PlayerBody.MAX_SPIRIT, PlayerInput.TECHNIQUE_COUNT,
 			data.damage_mult, data.knockback_taken_mult, data.speed_mult)
 		beast.body.team = BEAST_TEAM
