@@ -10,12 +10,15 @@ const SLOT_ACTIVE := Color(1.0, 0.6, 0.2)
 const MADRA_COLOR := Color(0.3, 0.6, 1.0)
 const EXHAUSTED_COLOR := Color(0.45, 0.45, 0.5)
 const FEEDBACK_SECONDS := 0.8
+const NOTICE_SECONDS := 5.0
+const MAX_NOTICES := 4
 
 var _slots: Array[Label] = []
 var _madra_fill := StyleBoxFlat.new()
 var _last_flow := 0
 var _last_cycle_beat := 0
 var _feedback_timer := 0.0
+var _notices: Array[Dictionary] = []  # {text, time_left}
 
 @onready var debug_label: Label = $Debug
 @onready var hint_label: Label = $Hint
@@ -28,16 +31,19 @@ var _feedback_timer := 0.0
 @onready var _death_label: Label = $DeathLabel
 @onready var _cycling_meter: CyclingMeter = $CyclingMeter
 @onready var _feedback_label: Label = $CyclingMeter/Feedback
+@onready var _claim_bar: ProgressBar = $ClaimBar
+@onready var _interact_label: Label = $InteractLabel
+@onready var _notice_label: Label = $NoticeLabel
+@onready var progression_panel: ProgressionPanel = $ProgressionPanel
 
 
 func _ready() -> void:
 	_madra_fill.bg_color = MADRA_COLOR
 	_madra_bar.add_theme_stylebox_override("fill", _madra_fill)
-	_madra_bar.max_value = PlayerBody.MAX_MADRA
 	for slot in Techniques.ALL.size():
 		var technique := Techniques.get_technique(slot)
 		var label := Label.new()
-		label.text = "[%s] %s  %d" % [TECHNIQUE_KEYS[slot], technique.display_name, technique.cost]
+		label.set_meta("text", "[%s] %s  %d" % [TECHNIQUE_KEYS[slot], technique.display_name, technique.cost])
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
 		label.add_theme_constant_override("outline_size", 4)
 		_technique_bar.add_child(label)
@@ -45,9 +51,11 @@ func _ready() -> void:
 
 
 func show_fighter(body: PlayerBody) -> void:
+	_health_bar.max_value = body.max_health
 	_health_bar.value = body.health
+	_madra_bar.max_value = body.madra_capacity
 	_madra_bar.value = body.madra
-	_madra_label.text = "%d / %d" % [body.madra / PlayerBody.MADRA_SCALE, PlayerBody.MAX_MADRA / PlayerBody.MADRA_SCALE]
+	_madra_label.text = "%d / %d" % [body.madra / PlayerBody.MADRA_SCALE, body.madra_capacity / PlayerBody.MADRA_SCALE]
 	_madra_fill.bg_color = EXHAUSTED_COLOR if body.is_exhausted() else MADRA_COLOR
 	_death_label.visible = body.is_dead()
 
@@ -64,7 +72,12 @@ func show_fighter(body: PlayerBody) -> void:
 	for slot in _slots.size():
 		var technique := Techniques.get_technique(slot)
 		var color := SLOT_READY
-		if technique.kind == TechniqueData.Kind.ENFORCER and body.enforcer_active:
+		var locked := slot >= body.technique_slots
+		_slots[slot].text = _slots[slot].get_meta("text") + (
+			"  (%s)" % Advancement.rank_name(Advancement.slot_unlock_rank(slot)) if locked else "")
+		if locked:
+			color = SLOT_UNAVAILABLE
+		elif technique.kind == TechniqueData.Kind.ENFORCER and body.enforcer_active:
 			color = SLOT_ACTIVE
 		elif not body.can_cast():
 			color = SLOT_UNAVAILABLE
@@ -73,6 +86,24 @@ func show_fighter(body: PlayerBody) -> void:
 		_slots[slot].modulate = color
 
 	_show_cycling(body)
+
+
+## progress: 0-1 claim progress. can_claim: a claimable remnant is within reach.
+func show_claim(progress: float, can_claim: bool) -> void:
+	_claim_bar.visible = progress > 0.0
+	_claim_bar.value = progress
+	_interact_label.visible = can_claim and progress <= 0.0
+
+
+func notify(text: String) -> void:
+	_notices.append({"text": text, "time_left": NOTICE_SECONDS})
+	if _notices.size() > MAX_NOTICES:
+		_notices.pop_front()
+	_refresh_notices()
+
+
+func _refresh_notices() -> void:
+	_notice_label.text = "\n".join(_notices.map(func(n: Dictionary): return n.text))
 
 
 func show_target(text: String) -> void:
@@ -107,5 +138,12 @@ func _feedback(text: String, color: Color) -> void:
 
 
 func _process(delta: float) -> void:
+	if not _notices.is_empty():
+		for notice in _notices:
+			notice.time_left -= delta
+		var before := _notices.size()
+		_notices = _notices.filter(func(n: Dictionary): return n.time_left > 0.0)
+		if _notices.size() != before:
+			_refresh_notices()
 	_feedback_timer = maxf(_feedback_timer - delta, 0.0)
 	_feedback_label.modulate.a = clampf(_feedback_timer / FEEDBACK_SECONDS * 2.0, 0.0, 1.0)

@@ -21,9 +21,9 @@ static func from_attack(attack: AttackData, damage_mult: float) -> HitSpec:
 
 
 ## Techniques can be blocked or not, but never parried.
-static func from_technique(technique: TechniqueData) -> HitSpec:
+static func from_technique(technique: TechniqueData, damage_mult := 1.0) -> HitSpec:
 	var spec := HitSpec.new()
-	spec.damage = technique.damage
+	spec.damage = roundi(technique.damage * damage_mult)
 	spec.hitstun = technique.hitstun
 	spec.knockback = technique.knockback
 	spec.blockable = technique.blockable

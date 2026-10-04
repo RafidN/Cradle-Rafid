@@ -3,7 +3,7 @@ extends RefCounted
 ## Wire format shared by client and server. Every packet starts with a u8 Msg type and
 ## is little-endian. Bump VERSION whenever the format changes.
 
-const VERSION := 3
+const VERSION := 4
 const DEFAULT_PORT := 7777
 const MAX_PLAYERS := 100
 const TICK_RATE := 30
@@ -11,14 +11,21 @@ const TICK_RATE := 30
 const INPUT_REDUNDANCY := 6
 const MAX_NAME_LENGTH := 16
 
-enum Msg { HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, PLAYER_JOINED, PLAYER_LEFT, HIT, BURST }
+enum Msg {
+	HELLO, WELCOME, REJECT, INPUT, SNAPSHOT, ENTITY_INFO, ENTITY_LEFT, HIT, BURST,
+	REQUEST, PROGRESS, NOTICE,
+}
 
-## Kinds of world effects (server-owned technique objects) sent in snapshots.
-enum Effect { PROJECTILE, TRAP }
+## Kinds of world effects (server-owned objects that aren't fighters) sent in snapshots.
+enum Effect { PROJECTILE, TRAP, REMNANT }
+## What a fighter is, for drawing it.
+enum EntityKind { ARTIST, DUMMY, BEAST }
+## Client requests.
+enum Request { CRAFT_BINDING, ADVANCE }
 
 
 static func is_reliable(msg: int) -> bool:
-	return msg != Msg.INPUT and msg != Msg.SNAPSHOT and msg != Msg.HIT and msg != Msg.BURST
+	return not msg in [Msg.INPUT, Msg.SNAPSHOT, Msg.HIT, Msg.BURST]
 
 
 # --- Client -> server ---------------------------------------------------------------
@@ -94,11 +101,14 @@ static func decode_reject(buf: StreamPeerBuffer) -> String:
 ## One snapshot per client per tick. The receiving client's own fighter is sent in full
 ## (everything PlayerBody.capture_state() holds) for reconciliation, with the tick of the
 ## last input the server applied for it. Everyone else is sent with just what's needed
-## to draw them, followed by world effects: {id, kind, owner, position, velocity, armed}.
-static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array, effects: Array) -> PackedByteArray:
+## to draw them, followed by world effects: {id, kind, owner, position, velocity, armed,
+## data}. claim is the client's remnant-claiming progress, 0-1.
+static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bodies: Array,
+		effects: Array, claim: float) -> PackedByteArray:
 	var buf := _writer(Msg.SNAPSHOT)
 	buf.put_u32(tick)
 	buf.put_u32(ack_input_tick)
+	buf.put_u8(roundi(clampf(claim, 0.0, 1.0) * 255.0))
 	_put_body_state(buf, own.capture_state())
 	buf.put_u16(bodies.size() - 1)
 	for body: PlayerBody in bodies:
@@ -111,6 +121,7 @@ static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bod
 		buf.put_u8(body.action_id)
 		buf.put_u16(body.action_tick)
 		buf.put_u16(body.health)
+		buf.put_u16(body.max_health)
 		buf.put_u8(body.visual_flags())
 	buf.put_u16(effects.size())
 	for effect: Dictionary in effects:
@@ -120,6 +131,7 @@ static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, bod
 		_put_vector3(buf, effect.position)
 		_put_vector3(buf, effect.velocity)
 		buf.put_u8(1 if effect.armed else 0)
+		buf.put_u8(effect.get("data", 0))
 	return buf.data_array
 
 
@@ -127,6 +139,7 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 	var snapshot := {
 		"tick": buf.get_u32(),
 		"ack": buf.get_u32(),
+		"claim": buf.get_u8() / 255.0,
 		"state": _get_body_state(buf),
 		"others": [],
 	}
@@ -140,6 +153,7 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 			"action_id": buf.get_u8(),
 			"action_tick": buf.get_u16(),
 			"health": buf.get_u16(),
+			"max_health": buf.get_u16(),
 			"flags": buf.get_u8(),
 		})
 	snapshot.effects = []
@@ -152,6 +166,7 @@ static func decode_snapshot(buf: StreamPeerBuffer) -> Dictionary:
 			"position": _get_vector3(buf),
 			"velocity": _get_vector3(buf),
 			"armed": buf.get_u8() != 0,
+			"data": buf.get_u8(),
 		})
 	return snapshot
 
@@ -189,23 +204,66 @@ static func decode_burst(buf: StreamPeerBuffer) -> Dictionary:
 	return {"caster": buf.get_u32(), "technique": buf.get_u8(), "position": _get_vector3(buf)}
 
 
-static func encode_player_joined(entity_id: int, display_name: String) -> PackedByteArray:
-	var buf := _writer(Msg.PLAYER_JOINED)
+## Who a fighter is: name, what kind of fighter, species (beasts) and rank (artists).
+## Sent when the client first needs it and again whenever it changes.
+static func encode_entity_info(entity_id: int, display_name: String, kind: EntityKind, species: int, rank: int) -> PackedByteArray:
+	var buf := _writer(Msg.ENTITY_INFO)
 	buf.put_u32(entity_id)
 	_put_string(buf, display_name)
+	buf.put_u8(kind)
+	buf.put_u8(maxi(species, 0))
+	buf.put_u8(rank)
 	return buf.data_array
 
 
-static func decode_player_joined(buf: StreamPeerBuffer) -> Dictionary:
+static func decode_entity_info(buf: StreamPeerBuffer) -> Dictionary:
 	var entity_id := buf.get_u32()
 	var display_name = _get_string(buf, MAX_NAME_LENGTH * 4)
-	return {"id": entity_id, "name": display_name if display_name != null else "?"}
+	return {
+		"id": entity_id,
+		"name": display_name if display_name != null else "?",
+		"kind": buf.get_u8(),
+		"species": buf.get_u8(),
+		"rank": buf.get_u8(),
+	}
 
 
-static func encode_player_left(entity_id: int) -> PackedByteArray:
-	var buf := _writer(Msg.PLAYER_LEFT)
+static func encode_entity_left(entity_id: int) -> PackedByteArray:
+	var buf := _writer(Msg.ENTITY_LEFT)
 	buf.put_u32(entity_id)
 	return buf.data_array
+
+
+static func encode_request(request: Request, argument := 0) -> PackedByteArray:
+	var buf := _writer(Msg.REQUEST)
+	buf.put_u8(request)
+	buf.put_u8(argument)
+	return buf.data_array
+
+
+## Returns {request, argument}, or {} if malformed.
+static func decode_request(buf: StreamPeerBuffer) -> Dictionary:
+	if buf.get_available_bytes() < 2:
+		return {}
+	return {"request": buf.get_u8(), "argument": buf.get_u8()}
+
+
+static func encode_progress(progress: ProgressState) -> PackedByteArray:
+	var buf := _writer(Msg.PROGRESS)
+	progress.encode(buf)
+	return buf.data_array
+
+
+## A message for the player's screen ("Claimed a remnant", "Advanced to Copper").
+static func encode_notice(text: String) -> PackedByteArray:
+	var buf := _writer(Msg.NOTICE)
+	_put_string(buf, text)
+	return buf.data_array
+
+
+static func decode_notice(buf: StreamPeerBuffer) -> String:
+	var text = _get_string(buf, 512)
+	return text if text != null else ""
 
 
 # --- Helpers ------------------------------------------------------------------------

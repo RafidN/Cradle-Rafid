@@ -26,6 +26,8 @@ const LOCK_RANGE := 20.0
 const LOCK_BREAK_RANGE := 26.0
 const STATS_PRINT_INTERVAL := 5.0
 const BOT_AGGRO_RANGE := 30.0
+## Bots go out of their way to hunt beasts, the main source of essence.
+const BOT_HUNT_RANGE := 50.0
 const BOT_ATTACK_RANGE := 2.4
 
 const RESULT_TEXT := {
@@ -48,9 +50,12 @@ var _pending_snapshot := {}
 var _newest_snapshot_tick := 0
 var _server_time := -1.0  # Estimated tick of the newest snapshot, advanced every frame.
 var _remotes := {}  # entity_id -> RemotePlayer
-var _names := {}  # entity_id -> display name
+var _info := {}  # entity_id -> ENTITY_INFO dictionary
+var _progress := ProgressState.new()
+var _claim := 0.0
 var _lock_target_id := -1
 var _bot_cycling := false
+var _bot_request_cooldown := 0
 var _display_name := ""
 var _closed := false
 
@@ -108,8 +113,31 @@ func _on_connected() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event.is_action_pressed("lock_on") and _body and not bot:
+	if not _body or bot:
+		return
+	if event.is_action_pressed("lock_on"):
 		_set_lock_target(-1 if _lock_target_id >= 0 else _find_lock_candidate())
+	elif event.is_action_pressed("progression"):
+		_toggle_progression_panel()
+
+
+func _toggle_progression_panel() -> void:
+	var panel := _hud.progression_panel
+	panel.visible = not panel.visible
+	Input.mouse_mode = Input.MOUSE_MODE_VISIBLE if panel.visible else Input.MOUSE_MODE_CAPTURED
+
+
+func _ready() -> void:
+	_hud.progression_panel.craft_requested.connect(_request_craft)
+	_hud.progression_panel.advance_requested.connect(_request_advance)
+
+
+func _request_craft(binding: int) -> void:
+	_transport.send(1, Protocol.encode_request(Protocol.Request.CRAFT_BINDING, binding), true)
+
+
+func _request_advance() -> void:
+	_transport.send(1, Protocol.encode_request(Protocol.Request.ADVANCE), true)
 
 
 # --- Packets ------------------------------------------------------------------------
@@ -125,15 +153,26 @@ func _on_packet(_peer_id: int, bytes: PackedByteArray) -> void:
 		_on_burst(Protocol.decode_burst(buf))
 	elif msg == Protocol.Msg.WELCOME:
 		_on_welcome(Protocol.decode_welcome(buf))
-	elif msg == Protocol.Msg.PLAYER_JOINED:
-		var joined := Protocol.decode_player_joined(buf)
-		_names[joined.id] = joined.name
-		if _remotes.has(joined.id):
-			_remotes[joined.id].set_display_name(joined.name)
-	elif msg == Protocol.Msg.PLAYER_LEFT:
+	elif msg == Protocol.Msg.ENTITY_INFO:
+		var info := Protocol.decode_entity_info(buf)
+		_info[info.id] = info
+		if _remotes.has(info.id):
+			_remotes[info.id].configure(info)
+	elif msg == Protocol.Msg.ENTITY_LEFT:
 		var entity_id := buf.get_u32()
-		_names.erase(entity_id)
+		_info.erase(entity_id)
 		_remove_remote(entity_id)
+	elif msg == Protocol.Msg.PROGRESS:
+		_progress = ProgressState.decode(buf)
+		if _body:
+			_progress.apply_to(_body)
+		if bot:
+			print("[client %s] %s, essence %s" % [_display_name, Advancement.rank_name(_progress.rank), _progress.essence])
+	elif msg == Protocol.Msg.NOTICE:
+		var text := Protocol.decode_notice(buf)
+		_hud.notify(text)
+		if bot:
+			print("[client %s] %s" % [_display_name, text])
 	elif msg == Protocol.Msg.REJECT:
 		_close(Protocol.decode_reject(buf))
 
@@ -146,6 +185,7 @@ func _on_welcome(welcome: Dictionary) -> void:
 	_body.entity_id = _entity_id
 	_body.name = "LocalPlayer"
 	_world.add_child(_body)
+	_progress.apply_to(_body)
 	_body.respawn(welcome.position, welcome.facing)
 	_body.reset_physics_interpolation()
 
@@ -161,6 +201,7 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		return  # Late or duplicate; a newer one already arrived.
 	_newest_snapshot_tick = snapshot.tick
 	_snapshots += 1
+	_claim = snapshot.claim
 	_pending_snapshot = snapshot  # Reconciled at the start of the next physics tick.
 
 	if _server_time < 0.0 or absf(snapshot.tick - _server_time) > 10.0:
@@ -175,7 +216,7 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		if remote == null:
 			remote = REMOTE_PLAYER_SCENE.instantiate()
 			_entities.add_child(remote)
-			remote.set_display_name(_names.get(other.id, "..."))
+			remote.configure(_info.get(other.id, {"name": "...", "kind": Protocol.EntityKind.ARTIST, "species": 0, "rank": 0}))
 			_remotes[other.id] = remote
 		remote.push_state(snapshot.tick, other)
 	for entity_id in _remotes.keys():
@@ -353,13 +394,19 @@ func _update_hud() -> void:
 	_hud.debug_label.text = _stats_text()
 	_hud.show_fighter(_body)
 	var target: RemotePlayer = _remotes.get(_lock_target_id)
-	_hud.show_target("%s  —  %d / %d" % [target.display_name, target.latest_state().get("health", 0),
-		PlayerBody.MAX_HEALTH] if target else "")
+	var state := target.latest_state() if target else {}
+	_hud.show_target("%s  —  %d / %d" % [target.display_name, state.get("health", 0), state.get("max_health", 0)] if target else "")
+	var near_remnant := _body.action == PlayerBody.Action.NONE \
+		and not _effects.nearest_remnant(_body.global_position, RemnantField.CLAIM_RADIUS, _entity_id).is_empty()
+	_hud.show_claim(_claim, near_remnant)
+	if _hud.progression_panel.visible:
+		_hud.progression_panel.show_progress(_progress, _body.action == PlayerBody.Action.CYCLE)
 
 
 func _stats_text() -> String:
 	var lines := PackedStringArray([
-		"%s (entity %d)  |  %d fighters visible" % [_display_name, _entity_id, _remotes.size() + 1],
+		"%s (entity %d, %s)  |  %d fighters visible" % [_display_name, _entity_id,
+			Advancement.rank_name(_progress.rank), _remotes.size() + 1],
 		"Input RTT: %s" % ("%d ms" % _rtt_ms if _rtt_ms >= 0.0 else "-"),
 		"Unacked inputs: %d  |  Corrections: %d" % [_history.size(), _corrections],
 		"HP: %d  |  Madra: %d  |  Hits landed: %d  |  Hits taken: %d" % [_body.health if _body else 0,
@@ -378,14 +425,29 @@ func _stats_text() -> String:
 ## its madra runs low, so headless runs exercise every system.
 func _bot_input() -> PlayerInput:
 	var input := PlayerInput.new()
-	var target := _nearest_remote(BOT_AGGRO_RANGE)
+	var target := _nearest_remote(BOT_HUNT_RANGE, Protocol.EntityKind.BEAST)
+	if target == null:
+		target = _nearest_remote(BOT_AGGRO_RANGE)
 	var distance := target.global_position.distance_to(_body.global_position) if target else INF
+	_bot_progress()
+	var wants_advance := _progress.advance_error(true).is_empty()
 
-	if _body.madra < PlayerBody.MAX_MADRA * 0.2 and not _body.is_exhausted():
+	# Claim remnants when nothing is close enough to fight.
+	var remnant := _effects.nearest_remnant(_body.global_position, 25.0, _entity_id)
+	if not remnant.is_empty() and distance > 4.0:
+		var offset: Vector3 = remnant.position - _body.global_position
+		if Vector2(offset.x, offset.z).length() > 1.2:
+			input.set_yaw(atan2(-offset.x, -offset.z))
+			input.set_move(Vector2(0.0, -1.0))
+		else:
+			input.buttons |= PlayerInput.INTERACT
+		return input
+
+	if _body.madra < _body.madra_capacity * 0.2 and not _body.is_exhausted():
 		_bot_cycling = true
-	elif _body.madra > PlayerBody.MAX_MADRA * 0.8:
+	elif _body.madra > _body.madra_capacity * 0.8:
 		_bot_cycling = false
-	if _bot_cycling and distance > 3.0:
+	if (_bot_cycling or wants_advance) and distance > 3.0:
 		if _body.action != PlayerBody.Action.CYCLE:
 			input.buttons |= PlayerInput.CYCLE
 		elif _body.action_tick % PlayerBody.CYCLE_BEAT_TICKS == 0:
@@ -424,12 +486,27 @@ func _bot_input() -> PlayerInput:
 	return input
 
 
-func _nearest_remote(max_range: float) -> RemotePlayer:
+## Crafts what it can and breaks through as soon as it's allowed (bots only).
+func _bot_progress() -> void:
+	_bot_request_cooldown -= 1
+	if _bot_request_cooldown > 0:
+		return
+	_bot_request_cooldown = Protocol.TICK_RATE
+	for binding in Advancement.BINDINGS.size():
+		if _progress.craft_error(binding).is_empty():
+			_request_craft(binding)
+			return
+	if _progress.advance_error(_body.action == PlayerBody.Action.CYCLE).is_empty():
+		_request_advance()
+
+
+## Nearest living remote fighter within range, optionally only of one kind (-1 = any).
+func _nearest_remote(max_range: float, kind := -1) -> RemotePlayer:
 	var nearest: RemotePlayer = null
 	var nearest_distance := max_range
 	for remote: RemotePlayer in _remotes.values():
 		var distance := remote.global_position.distance_to(_body.global_position)
-		if not remote.is_dead() and distance < nearest_distance:
+		if not remote.is_dead() and distance < nearest_distance and (kind < 0 or remote.kind == kind):
 			nearest = remote
 			nearest_distance = distance
 	return nearest

@@ -64,14 +64,14 @@ func release(caster: PlayerBody, technique_id: int, tick: int, view_tick: float,
 			var rewind_to := clampf(view_tick, tick - max_rewind_ticks, tick - 1)
 			burst.call(caster.entity_id, technique_id, caster.global_position)
 			for target: PlayerBody in bodies:
-				if target == caster or target.is_dead():
+				if target == caster or target.is_dead() or not Combat.can_harm(caster, target):
 					continue
 				var seen_at := _rewound(target, rewind_to)
 				var offset := seen_at - caster.global_position
 				if Vector2(offset.x, offset.z).length() > technique.radius + PlayerBody.HURT_RADIUS or absf(offset.y) > 2.0:
 					continue
 				if not _dodged(target, rewind_to):
-					land_hit.call(caster, target, HitSpec.from_technique(technique), caster.global_position, technique_id)
+					land_hit.call(caster, target, Combat.technique_spec(caster, technique), caster.global_position, technique_id)
 		TechniqueData.Kind.FORGER:
 			var trap := Trap.new()
 			trap.id = _take_id()
@@ -122,16 +122,17 @@ func _advance_projectile(projectile: Projectile, tick: int, bodies: Array, space
 			return true
 		projectile.position = next
 		projectile.travelled += step.length()
+		var caster := _find(bodies, projectile.owner_id)
 		for target: PlayerBody in bodies:
-			if target.entity_id == projectile.owner_id or target.is_dead():
+			if target.entity_id == projectile.owner_id or target.is_dead() or not Combat.can_harm(caster, target):
 				continue
 			if not Combat.sphere_overlaps(projectile.position, PROJECTILE_RADIUS, _rewound(target, rewind_to)):
 				continue
 			if _dodged(target, rewind_to):
 				continue
-			var spec := HitSpec.from_technique(projectile.technique)
 			var origin := projectile.position - projectile.velocity.normalized()
-			land_hit.call(_find(bodies, projectile.owner_id), target, spec, origin, Techniques.ALL.find(projectile.technique))
+			land_hit.call(caster, target, Combat.technique_spec(caster, projectile.technique), origin,
+				Techniques.ALL.find(projectile.technique))
 			return true
 		if projectile.travelled >= projectile.technique.max_range:
 			return true
@@ -143,8 +144,10 @@ func _check_trap(trap: Trap, bodies: Array) -> bool:
 	if trap.age < trap.technique.arm_ticks:
 		return false
 	var victims := []
+	var caster := _find(bodies, trap.owner_id)
 	for target: PlayerBody in bodies:
-		if target.entity_id == trap.owner_id or target.is_dead() or target.is_invulnerable():
+		if target.entity_id == trap.owner_id or target.is_dead() or target.is_invulnerable() \
+				or not Combat.can_harm(caster, target):
 			continue
 		var offset := target.global_position - trap.position
 		if Vector2(offset.x, offset.z).length() <= trap.technique.radius + PlayerBody.HURT_RADIUS and absf(offset.y) < 1.5:
@@ -154,7 +157,7 @@ func _check_trap(trap: Trap, bodies: Array) -> bool:
 	var technique_id := Techniques.ALL.find(trap.technique)
 	burst.call(trap.owner_id, technique_id, trap.position)
 	for target: PlayerBody in victims:
-		land_hit.call(_find(bodies, trap.owner_id), target, HitSpec.from_technique(trap.technique), trap.position, technique_id)
+		land_hit.call(caster, target, Combat.technique_spec(caster, trap.technique), trap.position, technique_id)
 	return true
 
 

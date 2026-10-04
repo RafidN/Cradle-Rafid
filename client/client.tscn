@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://client/net/game_client.gd" id="1_client"]
 [ext_resource type="Script" path="res://shared/net/net_transport.gd" id="2_transport"]
@@ -6,9 +6,13 @@
 [ext_resource type="Script" path="res://client/ui/combat_hud.gd" id="4_hud"]
 [ext_resource type="Script" path="res://client/ui/cycling_meter.gd" id="5_meter"]
 [ext_resource type="Script" path="res://client/fx/world_effects.gd" id="6_effects"]
+[ext_resource type="Script" path="res://client/ui/progression_panel.gd" id="7_progression"]
 
 [sub_resource type="StyleBoxFlat" id="StyleBoxFlat_hp"]
 bg_color = Color(0.8, 0.22, 0.2, 1)
+
+[sub_resource type="StyleBoxFlat" id="StyleBoxFlat_claim"]
+bg_color = Color(0.95, 0.85, 0.45, 1)
 
 [node name="GameClient" type="Node"]
 script = ExtResource("1_client")
@@ -47,7 +51,7 @@ offset_bottom = -8.0
 grow_vertical = 0
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
-text = "WASD move  ·  LMB light  ·  RMB heavy  ·  Shift dodge  ·  Q block (tap to parry)  ·  1-4 techniques  ·  C cycle (press when the breath is full)  ·  Tab lock-on  ·  Esc mouse"
+text = "WASD move  ·  LMB light  ·  RMB heavy  ·  Shift dodge  ·  Q block  ·  1-4 techniques  ·  C cycle  ·  E claim  ·  P advancement  ·  Tab lock-on  ·  Esc mouse"
 
 [node name="HealthBar" type="ProgressBar" parent="HUD"]
 anchors_preset = 2
@@ -169,3 +173,68 @@ theme_override_constants/outline_size = 6
 theme_override_font_sizes/font_size = 32
 text = "Defeated — respawning..."
 horizontal_alignment = 1
+
+[node name="ClaimBar" type="ProgressBar" parent="HUD"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -150.0
+offset_top = 60.0
+offset_right = 150.0
+offset_bottom = 78.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/fill = SubResource("StyleBoxFlat_claim")
+max_value = 1.0
+show_percentage = false
+
+[node name="InteractLabel" type="Label" parent="HUD"]
+visible = false
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -200.0
+offset_top = 50.0
+offset_right = 200.0
+offset_bottom = 80.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_colors/font_color = Color(0.95, 0.85, 0.45, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+text = "Hold E to claim the remnant"
+horizontal_alignment = 1
+
+[node name="NoticeLabel" type="Label" parent="HUD"]
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -400.0
+offset_top = 48.0
+offset_right = 400.0
+offset_bottom = 160.0
+grow_horizontal = 2
+theme_override_colors/font_color = Color(0.85, 0.95, 1, 1)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 5
+horizontal_alignment = 1
+
+[node name="ProgressionPanel" type="PanelContainer" parent="HUD"]
+visible = false
+anchors_preset = 6
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -480.0
+offset_top = -260.0
+offset_right = -24.0
+offset_bottom = 260.0
+grow_horizontal = 0
+grow_vertical = 2
+script = ExtResource("7_progression")

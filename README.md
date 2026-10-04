@@ -134,6 +134,34 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
   - Projectiles, bursts and traps exist on the server (`server/world/technique_effects.gd`).
   - A projectile tests targets rewound by its caster's view delay for its whole flight. Bursts rewind like melee. Traps check where enemies are now, because the victim is the one walking into them.
 
+### Remnants and advancement implementation (M3)
+- **Sacred beasts** live in dens around the arena. On the server they're ordinary fighters driven by a `BeastBrain` (`server/ai/beast_brain.gd`). The brain produces the same `PlayerInput` a player would, so beasts use the shared combat and technique code and its lag compensation unchanged.
+  - **Behavior:** a beast wanders near home and hunts the nearest artist inside its aggro range, or whoever hits it. It attacks in bursts with pauses between them (your openings), and returns home to heal if you drag it past its leash.
+  - **Teams:** beasts can't hurt each other. Artists are free-for-all.
+
+  | Beast | Aspect | Rank | HP | Style |
+  |---|---|---|---|---|
+  | Ember Hound | Fire | Copper | 55 | Fast light combos, spits Ember Lance at range |
+  | Gale Fox | Wind | Copper | 45 | Very fast, dodges a lot |
+  | Stoneback Boar | Earth | Iron | 150 | Slow, heavy guard-breaking hits, fire stomp up close, barely flinches |
+
+- **Remnants:** every fallen beast or artist leaves a glowing remnant of its aspect. To claim it, stand next to it and hold **E** for 2 s without acting.
+  - Whoever made the kill has it to themselves for 10 s; after that anyone can claim it. Unclaimed remnants fade after 90 s.
+  - Artists drop a small fire remnant, so killing players pays too.
+- **Essence and bindings:** each remnant gives essence of its aspect (Fire, Earth or Wind). Press **P** for the advancement panel.
+  - **Iron Body Binding:** costs 20 fire and 40 earth essence. It's required to reach Iron.
+  - **Kindled Core Binding:** costs 30 fire essence and gives +15 madra capacity. You can hold up to 2.
+- **Ranks:** you can only break through while **cycling**.
+
+  | Rank | Requires | HP | Madra | Techniques | Other |
+  |---|---|---|---|---|---|
+  | Foundation | — | 100 | 100 | Flame Body, Ember Lance | |
+  | Copper | 60 essence (any) | 115 | 140 | + Searing Ring | +5% damage |
+  | Iron | 100 essence + Iron Body Binding | 160 | 160 | + Cinder Trap | +15% damage, −30% knockback taken |
+
+- **Authority:** the server owns progression. The client sends requests (craft, advance), and the server checks them and answers with a progress update and a notice. Progression is lost on disconnect until accounts and persistence arrive in M4.
+- **Fast testing:** start the server with `--essence-mult=6` to see the whole Foundation → Iron loop in a couple of minutes. Bots hunt beasts, claim remnants, craft and advance on their own.
+
 ## 3. Project layout
 
 ```
@@ -165,7 +193,8 @@ docs/     design notes
 | Lock-on (toggle) | Tab / MMB | R3 |
 | Techniques 1–4 | 1–4 | D-pad |
 | Cycle / breathe | C | LB |
-| Interact / Pause | E / Esc | — / Start |
+| Claim remnant (hold) / Advancement panel | E / P | Y / — |
+| Pause / release mouse | Esc | Start |
 
 ---
 
@@ -185,7 +214,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
 3. ✅ **M2: Madra and cycling**
    - Madra pool, the cycling minigame, and exhaustion.
    - The first Path with one technique of each type: Enforcer, Striker, Ruler, Forger.
-4. **M3: Remnants and advancement**
+4. ✅ **M3: Remnants and advancement**
    - AI sacred beasts that run on the server.
    - Remnant drops and claiming, essence and bindings.
    - Advancement from Foundation to Copper to Iron.
@@ -211,7 +240,8 @@ Each milestone ends with something you can play and test over a simulated bad ne
 | `--latency=150 --jitter=20 --loss=5` | Simulated network on that client: extra RTT in ms, jitter in ms, packet loss in % |
 | `--bot` | A client that moves on its own and prints stats every 5 s. Works headless, so it's useful for load tests. |
 
-| `--log-hits` (server) | Print every hit: who hit whom, the outcome, and how far it rewound |
+| `--log-hits` (server) | Print every hit: who hit whom, the outcome, and its source |
+| `--essence-mult=N` (server) | Multiply essence from remnants, to test progression quickly |
 | `--screenshot=out.png [--screenshot-after=5]` | Save one frame after N seconds and quit, so visuals can be checked without watching the window |
 
 **Local test** (a headless server plus 2 windowed clients at +150 ms RTT, 5% loss, 20 ms jitter):
@@ -220,7 +250,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
 tools/run_local.sh 2 150 5 20
 ```
 
-**Tests** (combat rules, iframes, combos, input encoding, and checking that rewind + replay matches straight simulation):
+**Tests** (combat, madra and cycling, techniques, progression, remnants, beast AI, input and progress encoding, rewind + replay matching straight simulation, and a check that every script compiles):
 
 ```bash
 /Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/test_combat.gd

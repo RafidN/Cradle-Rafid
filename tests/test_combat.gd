@@ -25,6 +25,7 @@ func _run() -> void:
 	await physics_frame
 	await physics_frame
 
+	_test_all_scripts_compile()
 	_test_hitbox_geometry()
 	_test_clean_hit()
 	_test_block_and_backstab()
@@ -44,9 +45,37 @@ func _run() -> void:
 	_test_technique_hits()
 	_test_faces_camera()
 	_test_move_cancels_recovery()
+	_test_progression_rules()
+	_test_rank_stats()
+	_test_stat_multipliers()
+	_test_remnant_claiming()
+	_test_beast_brain()
 
 	print("\n%s" % ("ALL TESTS PASSED" if _failures == 0 else "%d FAILURE(S)" % _failures))
 	quit(1 if _failures > 0 else 0)
+
+
+## Loads every script in the project, so client/server code these tests never run still
+## has to compile.
+func _test_all_scripts_compile() -> void:
+	var broken := []
+	for path in _scripts_under("res://"):
+		var script := load(path) as GDScript
+		if script == null or not script.can_instantiate():
+			broken.append(path)
+	_check(broken.is_empty(), "every script compiles%s" % ("" if broken.is_empty() else " (broken: %s)" % [broken]))
+
+
+func _scripts_under(dir_path: String) -> PackedStringArray:
+	var found := PackedStringArray()
+	var dir := DirAccess.open(dir_path)
+	for sub in dir.get_directories():
+		if not sub.begins_with("."):
+			found.append_array(_scripts_under(dir_path.path_join(sub)))
+	for file in dir.get_files():
+		if file.get_extension() == "gd":
+			found.append(dir_path.path_join(file))
+	return found
 
 
 func _test_hitbox_geometry() -> void:
@@ -361,6 +390,152 @@ func _test_move_cancels_recovery() -> void:
 	_check(body.action == PlayerBody.Action.NONE and body.action_tick < attack.total_ticks(),
 		"moving cancels the back half of recovery")
 	body.free()
+
+
+func _test_progression_rules() -> void:
+	var progress := ProgressState.new()
+	_check(not progress.advance_error(true).is_empty(), "can't advance without essence")
+	progress.add_essence(Advancement.Aspect.FIRE, 40)
+	progress.add_essence(Advancement.Aspect.WIND, 25)
+	_check(not progress.advance_error(false).is_empty(), "can't break through unless cycling")
+	_check(progress.advance_error(true).is_empty(), "enough essence of any aspect reaches Copper")
+	progress.advance()
+	_check(progress.rank == Advancement.Rank.COPPER, "advancing raises the rank")
+	_check(progress.total_essence() == 5 and progress.essence[Advancement.Aspect.FIRE] == 0,
+		"advancing spends essence from the largest pools first (left %s)" % progress.essence)
+
+	progress.add_essence(Advancement.Aspect.EARTH, 200)
+	_check(progress.advance_error(true).contains("Iron Body"), "Iron needs an Iron Body Binding")
+	_check(not progress.craft_error(Advancement.Binding.IRON_BODY).is_empty(), "bindings need every aspect in their cost")
+	progress.add_essence(Advancement.Aspect.FIRE, 50)
+	progress.craft(Advancement.Binding.IRON_BODY)
+	_check(progress.bindings[Advancement.Binding.IRON_BODY] == 1 and progress.essence[Advancement.Aspect.FIRE] == 30,
+		"crafting spends its cost and adds the binding")
+	_check(not progress.craft_error(Advancement.Binding.IRON_BODY).is_empty(), "bindings have a cap")
+	progress.advance()
+	_check(progress.rank == Advancement.Rank.IRON and progress.bindings[Advancement.Binding.IRON_BODY] == 0,
+		"advancing to Iron consumes the binding")
+	_check(not progress.advance_error(true).is_empty(), "nothing above Iron yet")
+
+	var buf := StreamPeerBuffer.new()
+	progress.encode(buf)
+	buf.seek(0)
+	var decoded := ProgressState.decode(buf)
+	_check(decoded.rank == progress.rank and decoded.essence == progress.essence and decoded.bindings == progress.bindings,
+		"progress survives the wire")
+
+
+func _test_rank_stats() -> void:
+	var body := _body(Vector3.ZERO, 0.0)
+	var progress := ProgressState.new()
+	progress.apply_to(body)
+	body.respawn(Vector3.ZERO, 0.0)
+	_step(body, _input(PlayerInput.technique_button(Techniques.SEARING_RING)))
+	_check(body.action != PlayerBody.Action.TECHNIQUE, "Foundation can't cast a Copper technique")
+	_step(body, _input(PlayerInput.technique_button(Techniques.EMBER_LANCE)))
+	_check(body.action == PlayerBody.Action.TECHNIQUE, "Foundation can cast its own techniques")
+
+	progress.rank = Advancement.Rank.IRON
+	progress.bindings[Advancement.Binding.KINDLED_CORE] = 2
+	progress.apply_to(body)
+	body.respawn(Vector3.ZERO, 0.0)
+	_check(body.max_health == 160 and body.health == 160, "Iron raises max health")
+	_check(body.madra_capacity == (160 + 2 * Advancement.KINDLED_CORE_MADRA) * PlayerBody.MADRA_SCALE,
+		"Kindled Cores add madra capacity")
+	for i in 30:
+		_step(body, _input())
+	_check(body.madra <= body.madra_capacity, "madra never exceeds capacity")
+	body.free()
+
+
+func _test_stat_multipliers() -> void:
+	var pair := _pair()
+	var attack := Attacks.get_attack(Attacks.LIGHT_1)
+	pair[0].damage_mult = 2.0
+	pair[1].knockback_taken_mult = 0.0
+	var outcome := _melee(pair[0], pair[1], attack)
+	_check(outcome[1] == attack.damage * 2, "attacker damage multiplier applies")
+	_check(is_zero_approx(pair[1].velocity.x) and is_zero_approx(pair[1].velocity.z), "knockback resistance applies")
+	pair[0].team = 1
+	_check(Combat.can_harm(pair[0], pair[1]), "beasts can hurt artists")
+	pair[1].team = 1
+	_check(not Combat.can_harm(pair[0], pair[1]), "beasts can't hurt each other")
+	pair[0].team = 0
+	pair[1].team = 0
+	_check(Combat.can_harm(pair[0], pair[1]) and Combat.can_harm(pair[1], pair[0]), "artists can fight each other")
+	_free(pair)
+
+
+func _test_remnant_claiming() -> void:
+	var killer := _body(Vector3.ZERO, 0.0)
+	var rival := _body(Vector3(0.5, 0, 0), 0.0)
+	killer.entity_id = 1
+	rival.entity_id = 2
+	var field := RemnantField.new()
+	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.EARTH, 30, 1, "Stoneback Boar")
+
+	var done := []
+	for i in 30:
+		done += field.update([{"body": rival, "interacting": true}])
+	_check(done.is_empty() and field.progress_of(2) == 0.0, "only the killer may claim at first")
+
+	for i in RemnantField.CLAIM_TICKS - 10:
+		done += field.update([{"body": killer, "interacting": true}])
+	field.update([{"body": killer, "interacting": false}])
+	_check(field.progress_of(1) == 0.0, "letting go of interact resets the claim")
+
+	for i in RemnantField.CLAIM_TICKS:
+		done += field.update([{"body": killer, "interacting": true}])
+	_check(done.size() == 1 and done[0][0] == 1 and done[0][1].essence == 30, "holding interact long enough claims it")
+	_check(field.count() == 0, "a claimed remnant is gone")
+
+	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.FIRE, 6, 1, "Somebody")
+	for i in RemnantField.EXCLUSIVE_TICKS:
+		field.update([])
+	done = []
+	for i in RemnantField.CLAIM_TICKS:
+		done += field.update([{"body": rival, "interacting": true}])
+	_check(done.size() == 1 and done[0][0] == 2, "anyone may claim once exclusivity ends")
+
+	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.FIRE, 6, 0, "Nobody")
+	for i in RemnantField.LIFETIME_TICKS:
+		field.update([])
+	_check(field.count() == 0, "unclaimed remnants fade")
+	_free([killer, rival])
+
+
+func _test_beast_brain() -> void:
+	var data := Beasts.get_beast(Beasts.EMBER_HOUND)
+	var beast := _body(Vector3.ZERO, 0.0)
+	beast.apply_stats(data.max_health, PlayerBody.MAX_MADRA, 4, data.damage_mult, data.knockback_taken_mult, data.speed_mult)
+	beast.respawn(Vector3.ZERO, 0.0)
+	var brain := BeastBrain.new(data, beast, Vector3.ZERO, 7)
+	var far := _body(Vector3(0, 0, -(data.aggro_range + 5.0)), 0.0)
+	far.entity_id = 50
+	brain.think([far])
+	_check(brain.state == BeastBrain.State.IDLE, "beasts ignore artists beyond aggro range")
+
+	var near := _body(Vector3(0, 0, -1.5), PI)
+	near.entity_id = 51
+	var attacked := false
+	for i in 120:
+		var input := brain.think([near])
+		_step(beast, input)
+		attacked = attacked or input.is_pressed(PlayerInput.LIGHT) or input.is_pressed(PlayerInput.HEAVY) \
+			or input.is_pressed(PlayerInput.DODGE)
+	_check(brain.state == BeastBrain.State.HUNT and brain.target_id == 51, "beasts hunt artists that come close")
+	_check(attacked, "hunting beasts attack in melee range")
+
+	brain.on_hit(far)
+	_check(brain.target_id == 50, "being hit makes a beast hunt the attacker")
+	beast.global_position = Vector3(0, 0, data.leash_range + 2.0)
+	beast.health = 10
+	brain.think([near, far])
+	_check(brain.state == BeastBrain.State.RETURN, "beasts led past their leash return home")
+	beast.global_position = Vector3(0.5, 0, 0)
+	brain.think([near, far])
+	_check(brain.state == BeastBrain.State.IDLE and beast.health == beast.max_health, "beasts heal once home")
+	_free([beast, far, near])
 
 
 # --- Helpers ------------------------------------------------------------------------

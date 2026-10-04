@@ -2,7 +2,7 @@ extends Node
 ## Entry point. Starts a dedicated server, a client, or shows the connect menu,
 ## depending on the build and these command-line arguments (with or without a "--"
 ## separator before them, so they also work in the editor's Customize Run Instances):
-##   --server [--port=7777] [--log-hits]
+##   --server [--port=7777] [--log-hits] [--essence-mult=N]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
 ##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
 ## Headless runs and dedicated_server exports start a server unless --connect is given.
@@ -25,7 +25,7 @@ var _session: Node
 
 func _ready() -> void:
 	%ConnectButton.pressed.connect(_on_connect_pressed)
-	%ServerButton.pressed.connect(_start_server.bind(Protocol.DEFAULT_PORT, false))
+	%ServerButton.pressed.connect(_start_server.bind(Protocol.DEFAULT_PORT, false, 1))
 	if _headless:
 		Engine.max_fps = HEADLESS_MAX_FPS
 
@@ -41,7 +41,8 @@ func _ready() -> void:
 			String(args.get("loss", "0")).to_float(),
 			args.has("bot"))
 	elif args.has("server") or _headless or OS.has_feature("dedicated_server"):
-		_start_server(String(args.get("port", str(Protocol.DEFAULT_PORT))).to_int(), args.has("log-hits"))
+		_start_server(String(args.get("port", str(Protocol.DEFAULT_PORT))).to_int(), args.has("log-hits"),
+			String(args.get("essence-mult", "1")).to_int())
 
 
 func _on_connect_pressed() -> void:
@@ -49,9 +50,10 @@ func _on_connect_pressed() -> void:
 		_latency_spin.value, _jitter_spin.value, _loss_spin.value, false)
 
 
-func _start_server(port: int, log_hits: bool) -> void:
+func _start_server(port: int, log_hits: bool, essence_mult: int) -> void:
 	var server: GameServer = SERVER_SCENE.instantiate()
 	server.log_hits = log_hits
+	server.essence_mult = maxi(essence_mult, 1)
 	add_child(server)
 	var err := server.start(port)
 	if err != OK:

@@ -58,6 +58,11 @@ func _ready() -> void:
 	$Rig/WeaponPivot/Weapon.material_override = _weapon_material
 
 
+func set_color(new_color: Color) -> void:
+	color = new_color
+	_body_material.albedo_color = color
+
+
 ## tick may be fractional (between physics ticks). speed is horizontal m/s.
 func update_pose(action: int, action_id: int, tick: float, flags: int, speed: float, delta: float) -> void:
 	_time += delta

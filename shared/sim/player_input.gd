@@ -18,6 +18,8 @@ const CYCLE := 1 << 6
 const TECHNIQUE_1 := 1 << 7
 const TECHNIQUE_COUNT := 4
 const TECHNIQUE_MASK := ((1 << TECHNIQUE_COUNT) - 1) << 7
+## Held: claim a nearby remnant.
+const INTERACT := 1 << 11
 
 ## Bytes per input on the wire: u32 tick, s8 move x, s8 move y, u16 yaw, u16 buttons,
 ## u16 aim, u32 view tick, u8 view tick fraction.

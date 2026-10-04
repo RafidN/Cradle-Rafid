@@ -36,8 +36,18 @@ static func sphere_overlaps(point: Vector3, radius: float, target_position: Vect
 		and point.y <= target_position.y + PlayerBody.HURT_HEIGHT + radius)
 
 
+## Whether attacker may hurt target. A null attacker (its owner left) can hurt anyone.
+static func can_harm(attacker: PlayerBody, target: PlayerBody) -> bool:
+	return attacker == null or attacker.team == 0 or attacker.team != target.team
+
+
 static func melee_spec(attacker: PlayerBody, attack: AttackData) -> HitSpec:
-	return HitSpec.from_attack(attack, ENFORCER_DAMAGE_MULT if attacker.enforcer_active else 1.0)
+	var mult := attacker.damage_mult * (ENFORCER_DAMAGE_MULT if attacker.enforcer_active else 1.0)
+	return HitSpec.from_attack(attack, mult)
+
+
+static func technique_spec(caster: PlayerBody, technique: TechniqueData) -> HitSpec:
+	return HitSpec.from_technique(technique, caster.damage_mult if caster else 1.0)
 
 
 ## Applies a landed hit to the target. origin is where the hit came from (it decides
@@ -51,6 +61,7 @@ static func resolve(attacker: PlayerBody, target: PlayerBody, spec: HitSpec, ori
 		away = attacker.forward() if attacker else Vector3.FORWARD
 	away = away.normalized()
 	var frontal := target.forward().dot(-away) > 0.0
+	var knockback := spec.knockback * target.knockback_taken_mult
 	var damage_mult := EXHAUSTED_DAMAGE_TAKEN_MULT if target.is_exhausted() else 1.0
 
 	if spec.blockable and target.action == PlayerBody.Action.BLOCK and frontal:
@@ -60,17 +71,17 @@ static func resolve(attacker: PlayerBody, target: PlayerBody, spec: HitSpec, ori
 		if spec.guard_break:
 			var damage := ceili(spec.damage * GUARD_BREAK_DAMAGE_MULT * damage_mult)
 			target.apply_damage(damage)
-			target.apply_stagger(GUARD_BREAK_TICKS, away * spec.knockback)
+			target.apply_stagger(GUARD_BREAK_TICKS, away * knockback)
 			return [Result.GUARD_BROKEN, damage]
 		var chip := ceili(spec.damage * BLOCK_DAMAGE_MULT * damage_mult)
 		target.apply_damage(chip)
 		if not target.is_dead():
-			var push := away * spec.knockback * BLOCK_PUSHBACK_MULT
+			var push := away * knockback * BLOCK_PUSHBACK_MULT
 			target.velocity.x = push.x
 			target.velocity.z = push.z
 		return [Result.BLOCKED, chip]
 
 	var dealt := roundi(spec.damage * damage_mult)
 	target.apply_damage(dealt)
-	target.apply_hitstun(spec.hitstun, away * spec.knockback)
+	target.apply_hitstun(spec.hitstun, away * knockback)
 	return [Result.HIT, dealt]

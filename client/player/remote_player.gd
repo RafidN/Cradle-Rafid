@@ -8,11 +8,17 @@ const BAR_SIZE := Vector2(0.9, 0.09)
 const BAR_HEIGHT := 2.15
 const NAME_COLOR := Color(1, 1, 1)
 const LOCKED_COLOR := Color(1.0, 0.82, 0.3)
+const ARTIST_COLOR := Color(0.85, 0.45, 0.38)
+const DUMMY_COLOR := Color(0.75, 0.68, 0.55)
 
 var display_name := "..."
+var kind := Protocol.EntityKind.ARTIST
+var _label_text := "..."
+var _locked := false
 
 var _states: Array[Dictionary] = []  # snapshot states with "tick", oldest first
 var _fill_mesh := QuadMesh.new()
+var _bar_quads: Array[MeshInstance3D] = []
 var _shown_health := -1
 var _previous_position := Vector3.ZERO
 var _speed := 0.0
@@ -31,14 +37,37 @@ func _ready() -> void:
 	_add_bar_quad(_fill_mesh, Color(0.85, 0.2, 0.2), 1)
 
 
-func set_display_name(new_name: String) -> void:
-	display_name = new_name
-	_name_label.text = new_name
+## Applies an ENTITY_INFO: name, and what the fighter looks like.
+func configure(info: Dictionary) -> void:
+	display_name = info.name
+	kind = info.kind
+	var tint := ARTIST_COLOR
+	var size := 1.0
+	_label_text = "%s  ·  %s" % [display_name, Advancement.rank_name(info.rank)]
+	if kind == Protocol.EntityKind.BEAST:
+		var beast := Beasts.get_beast(info.species)
+		tint = beast.color
+		size = beast.scale
+		_label_text = "%s  (%s)" % [display_name, beast.rank_label]
+	elif kind == Protocol.EntityKind.DUMMY:
+		tint = DUMMY_COLOR
+		_label_text = display_name
+	_model.set_color(tint)
+	_model.scale = Vector3.ONE * size
+	_name_label.position.y = 2.4 * size
+	for quad in _bar_quads:
+		quad.position.y = BAR_HEIGHT * size
+	_refresh_label()
 
 
 func set_locked(locked: bool) -> void:
-	_name_label.modulate = LOCKED_COLOR if locked else NAME_COLOR
-	_name_label.text = "> %s <" % display_name if locked else display_name
+	_locked = locked
+	_refresh_label()
+
+
+func _refresh_label() -> void:
+	_name_label.modulate = LOCKED_COLOR if _locked else NAME_COLOR
+	_name_label.text = "> %s <" % _label_text if _locked else _label_text
 
 
 func push_state(tick: int, state: Dictionary) -> void:
@@ -83,14 +112,14 @@ func render(render_tick: float, delta: float) -> void:
 		_speed = lerpf(_speed, Vector2(moved.x, moved.z).length() / delta, 1.0 - exp(-12.0 * delta))
 	_previous_position = global_position
 	_model.update_pose(from.action, from.action_id, action_tick, from.flags, _speed, delta)
-	_update_health_bar(from.health)
+	_update_health_bar(from.health, from.max_health)
 
 
-func _update_health_bar(health: int) -> void:
+func _update_health_bar(health: int, max_health: int) -> void:
 	if health == _shown_health:
 		return
 	_shown_health = health
-	var fraction := clampf(float(health) / PlayerBody.MAX_HEALTH, 0.0, 1.0)
+	var fraction := clampf(float(health) / maxi(max_health, 1), 0.0, 1.0)
 	_fill_mesh.size = Vector2(BAR_SIZE.x * fraction, BAR_SIZE.y)
 	# Left-align the fill inside the bar, in billboard space.
 	_fill_mesh.center_offset = Vector3(-BAR_SIZE.x * (1.0 - fraction) * 0.5, 0.0, 0.002)
@@ -110,3 +139,4 @@ func _add_bar_quad(mesh: QuadMesh, tint: Color, priority: int) -> void:
 	quad.position.y = BAR_HEIGHT
 	quad.cast_shadow = GeometryInstance3D.SHADOW_CASTING_SETTING_OFF
 	add_child(quad)
+	_bar_quads.append(quad)

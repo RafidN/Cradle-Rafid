@@ -81,6 +81,20 @@ const BUFFER_PRIORITY := [
 ]
 
 var entity_id := 0
+
+# Stats. Set from rank (players) or species (beasts) with apply_stats(); the defaults
+# are a fully unlocked Foundation artist. Not part of the per-tick state.
+var max_health := MAX_HEALTH
+var madra_capacity := MAX_MADRA
+## Technique slots 0..technique_slots-1 can be cast.
+var technique_slots := PlayerInput.TECHNIQUE_COUNT
+var damage_mult := 1.0
+var knockback_taken_mult := 1.0
+var speed_mult := 1.0
+## Fighters on the same nonzero team can't hurt each other (beasts are team 1).
+## Team 0 is free-for-all: sacred artists may fight anyone.
+var team := 0
+
 ## Yaw the fighter faces. Separate from the camera; attacks go this way.
 var facing := 0.0
 var health := MAX_HEALTH
@@ -238,11 +252,24 @@ func apply_stagger(ticks: int, knockback: Vector3) -> void:
 func respawn(at: Vector3, new_facing: float) -> void:
 	restore_state({
 		"position": at, "velocity": Vector3.ZERO, "facing": new_facing, "dodge_yaw": 0.0,
-		"health": MAX_HEALTH, "action": Action.NONE, "action_id": 0, "action_tick": 0,
+		"health": max_health, "action": Action.NONE, "action_id": 0, "action_tick": 0,
 		"action_length": 0, "buffered": 0, "buffer_ticks": 0, "dodge_cooldown": 0,
-		"madra": MAX_MADRA, "flow": 0, "cycle_beat": 0, "exhaust_ticks": 0,
+		"madra": madra_capacity, "flow": 0, "cycle_beat": 0, "exhaust_ticks": 0,
 		"enforcer_active": false,
 	})
+
+
+## Applies rank or species stats. Health and madra are clamped to the new maximums.
+func apply_stats(new_max_health: int, new_madra_capacity: int, new_technique_slots: int,
+		new_damage_mult: float, new_knockback_taken_mult: float, new_speed_mult: float) -> void:
+	max_health = new_max_health
+	madra_capacity = new_madra_capacity
+	technique_slots = new_technique_slots
+	damage_mult = new_damage_mult
+	knockback_taken_mult = new_knockback_taken_mult
+	speed_mult = new_speed_mult
+	health = mini(health, max_health)
+	madra = mini(madra, madra_capacity)
 
 
 # --- State capture for prediction ---------------------------------------------------
@@ -374,8 +401,8 @@ func _start_attack(id: int, input: PlayerInput, _direction: Vector3) -> void:
 func _try_cast(technique_id: int, input: PlayerInput, _direction: Vector3) -> void:
 	_consume_buffer()
 	var technique := Techniques.get_technique(technique_id)
-	if technique == null:
-		return
+	if technique == null or technique_id >= technique_slots:
+		return  # Not unlocked at this rank.
 	var toggling_off := technique.kind == TechniqueData.Kind.ENFORCER and enforcer_active
 	if not toggling_off:
 		if not can_cast():
@@ -430,7 +457,7 @@ func _update_madra() -> void:
 		regen = CYCLE_REGEN * (1 + flow)
 	elif action == Action.BLOCK:
 		regen = 0
-	madra = mini(madra + regen, MAX_MADRA)
+	madra = mini(madra + regen, madra_capacity)
 
 
 func _exhaust() -> void:
@@ -452,7 +479,7 @@ func _apply_movement(input: PlayerInput, direction: Vector3, grounded: bool, del
 	var horizontal := Vector3(velocity.x, 0.0, velocity.z)
 	match action:
 		Action.NONE, Action.BLOCK:
-			var speed := RUN_SPEED if action == Action.NONE else BLOCK_SPEED
+			var speed := (RUN_SPEED if action == Action.NONE else BLOCK_SPEED) * speed_mult
 			if enforcer_active:
 				speed *= ENFORCER_SPEED_MULT
 			if is_exhausted():
