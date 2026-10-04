@@ -74,7 +74,7 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 |---|---|
 | Transport | ENet (UDP) via `ENetMultiplayerPeer`. Custom binary packets go through `send_bytes`, not `MultiplayerSynchronizer`, so bandwidth stays under our control. |
 | Authority | The server decides everything. Clients send only **inputs**, never positions or damage. |
-| Tick rate | 30 Hz simulation. Snapshots go out at 20 Hz. Physics interpolation smooths rendering. |
+| Tick rate | 30 Hz simulation. Snapshots go out every tick for now; the rate gets tuned in M5. Physics interpolation smooths rendering. |
 | Local player | **Client-side prediction** with **server reconciliation**. The client keeps a buffer of its inputs and replays them after each correction. |
 | Remote entities | **Snapshot interpolation**, rendered about 100 ms in the past. |
 | Hit detection | **Lag compensation**: the server rewinds hurtboxes to the tick the attacker actually saw. Melee uses swept hitboxes over the active frames. |
@@ -123,7 +123,7 @@ docs/     design notes
 
 Each milestone ends with something you can play and test over a simulated bad network.
 
-1. **M0: Netcode foundation**
+1. ✅ **M0: Netcode foundation**
    - Bootstrap that starts as either client or server.
    - Connect and handshake.
    - Players send inputs. The server moves them with authority. The client predicts its own movement and reconciles with the server. Other players are interpolated.
@@ -151,4 +151,28 @@ Each milestone ends with something you can play and test over a simulated bad ne
 
 ## Running
 
-The project has no runnable scenes yet. M0 adds the bootstrap scene and the launch commands for running a server and several clients.
+`boot/bootstrap.tscn` is the main scene. What it starts depends on the command-line arguments that come after `--`:
+
+| Arguments | Starts |
+|---|---|
+| *(none, windowed)* | A connect menu with Connect / Start Server and network simulation settings |
+| `--server [--port=7777]` | Server. A headless run or a `dedicated_server` export does the same thing without the flag. |
+| `--connect=host[:port] [--name=X]` | A client that connects straight away |
+| `--latency=150 --jitter=20 --loss=5` | Simulated network on that client: extra RTT in ms, jitter in ms, packet loss in % |
+| `--bot` | A client that moves on its own and prints stats every 5 s. Works headless, so it's useful for load tests. |
+
+**Local test** (a headless server plus 2 windowed clients at +150 ms RTT, 5% loss, 20 ms jitter):
+
+```bash
+tools/run_local.sh 2 150 5 20
+```
+
+**From the editor:** open *Debug → Customize Run Instances*, enable 3 instances, and give the first one `--server`. Run the others with no arguments (to get the menu) or with `--connect=127.0.0.1`.
+
+The client's top-left overlay shows:
+- **input RTT**
+- **unacked inputs**: inputs the server hasn't applied yet
+- **corrections**: how many times the server disagreed with the client's prediction
+- the active network simulation
+
+With a working network, corrections should stay at **0**. They only go up when every redundant copy of an input is lost, or when the server moves the player (for example on respawn).

@@ -1,0 +1,119 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://boot/bootstrap.gd" id="1_boot"]
+
+[node name="Bootstrap" type="Node"]
+script = ExtResource("1_boot")
+
+[node name="Menu" type="CanvasLayer" parent="."]
+
+[node name="Background" type="ColorRect" parent="Menu"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0.09, 0.1, 0.12, 1)
+
+[node name="Panel" type="PanelContainer" parent="Menu"]
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -190.0
+offset_top = -230.0
+offset_right = 190.0
+offset_bottom = 230.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Margin" type="MarginContainer" parent="Menu/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 20
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 20
+
+[node name="VBox" type="VBoxContainer" parent="Menu/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="Menu/Panel/Margin/VBox"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
+text = "CRADLE"
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="Menu/Panel/Margin/VBox"]
+layout_mode = 2
+text = "M0 netcode test"
+horizontal_alignment = 1
+
+[node name="NameEdit" type="LineEdit" parent="Menu/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+placeholder_text = "Name (optional)"
+max_length = 16
+
+[node name="AddressEdit" type="LineEdit" parent="Menu/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "127.0.0.1:7777"
+placeholder_text = "host:port"
+
+[node name="NetSimLabel" type="Label" parent="Menu/Panel/Margin/VBox"]
+layout_mode = 2
+text = "Simulated network"
+
+[node name="NetSim" type="GridContainer" parent="Menu/Panel/Margin/VBox"]
+layout_mode = 2
+columns = 2
+
+[node name="LatencyLabel" type="Label" parent="Menu/Panel/Margin/VBox/NetSim"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Added RTT (ms)"
+
+[node name="LatencySpin" type="SpinBox" parent="Menu/Panel/Margin/VBox/NetSim"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 1000.0
+step = 10.0
+
+[node name="JitterLabel" type="Label" parent="Menu/Panel/Margin/VBox/NetSim"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Jitter (ms)"
+
+[node name="JitterSpin" type="SpinBox" parent="Menu/Panel/Margin/VBox/NetSim"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 200.0
+step = 5.0
+
+[node name="LossLabel" type="Label" parent="Menu/Panel/Margin/VBox/NetSim"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Packet loss (%)"
+
+[node name="LossSpin" type="SpinBox" parent="Menu/Panel/Margin/VBox/NetSim"]
+unique_name_in_owner = true
+layout_mode = 2
+max_value = 50.0
+
+[node name="ConnectButton" type="Button" parent="Menu/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Connect"
+
+[node name="ServerButton" type="Button" parent="Menu/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Start Server"
+
+[node name="StatusLabel" type="Label" parent="Menu/Panel/Margin/VBox"]
+unique_name_in_owner = true
+layout_mode = 2
+horizontal_alignment = 1
+autowrap_mode = 3

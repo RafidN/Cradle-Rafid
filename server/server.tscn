@@ -1,0 +1,30 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://server/net/game_server.gd" id="1_server"]
+[ext_resource type="Script" path="res://shared/net/net_transport.gd" id="2_transport"]
+[ext_resource type="PackedScene" path="res://shared/world/test_arena.tscn" id="3_arena"]
+
+[node name="GameServer" type="Node"]
+script = ExtResource("1_server")
+
+[node name="NetTransport" type="Node" parent="."]
+script = ExtResource("2_transport")
+
+[node name="World" type="Node3D" parent="."]
+
+[node name="Arena" parent="World" instance=ExtResource("3_arena")]
+
+[node name="Players" type="Node3D" parent="World"]
+
+[node name="OverviewCamera" type="Camera3D" parent="World"]
+transform = Transform3D(1, 0, 0, 0, 0.707107, 0.707107, 0, -0.707107, 0.707107, 0, 28, 28)
+current = true
+
+[node name="Debug" type="CanvasLayer" parent="."]
+
+[node name="Status" type="Label" parent="Debug"]
+offset_left = 12.0
+offset_top = 8.0
+offset_right = 600.0
+offset_bottom = 34.0
+text = "SERVER  |  starting..."

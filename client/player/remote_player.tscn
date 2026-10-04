@@ -1,0 +1,18 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://client/player/remote_player.gd" id="1_remote"]
+[ext_resource type="PackedScene" path="res://shared/sim/character_model.tscn" id="2_model"]
+
+[node name="RemotePlayer" type="Node3D"]
+script = ExtResource("1_remote")
+
+[node name="Model" parent="." instance=ExtResource("2_model")]
+color = Color(0.85, 0.45, 0.38, 1)
+
+[node name="NameLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.2, 0)
+pixel_size = 0.004
+billboard = 1
+text = "..."
+font_size = 48
+outline_size = 12
