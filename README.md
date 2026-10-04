@@ -89,8 +89,8 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 
   | Attack | Startup / active / recovery | Damage | Notes |
   |---|---|---|---|
-  | Light 1 → 2 → 3 | 6/3/10 → 5/3/10 → 8/4/16 | 8 → 9 → 14 | Pressing light again during recovery chains to the next hit, and the chain is a true combo. Light 3 is a thrust with big knockback. |
-  | Heavy | 15/4/20 | 22 | Breaks guard. Can end a light chain. |
+  | Light 1 → 2 → 3 | 6/3/6 → 5/3/6 → 8/4/10 | 8 → 9 → 14 | Pressing light again during recovery chains to the next hit, and the chain is a true combo. Light 3 is a thrust with big knockback. |
+  | Heavy | 15/4/13 | 22 | Breaks guard. Can end a light chain. |
 
 - **Buffering:** a pressed action waits up to 8 ticks for the fighter to be free. Dodge can cancel an attack's recovery.
 - **Dodge:** 10 ticks long and invulnerable on ticks 1–6, with a 6-tick cooldown. With no direction held you dodge backwards.
@@ -103,7 +103,11 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
   - Hits, damage, stuns, parries and deaths come only from the server. Your client gets them through the correction it receives.
 - **Lag compensation:** each input carries the server tick the client was looking at. The server rewinds targets to that tick before testing the hitbox, up to 12 ticks (400 ms) back.
   - A dodge counts if it was active on either the rewound frame or the server's current frame, which favors the defender.
-- **Lock-on:** while locked, the camera tracks the target, the fighter strafes facing it, and attacks aim at it. Lock-on breaks beyond 26 m or when the target dies.
+- **Facing:** the fighter always turns to face where the camera looks, or toward its lock-on target. Movement strafes relative to the camera.
+  - Attacks and techniques go in the facing direction and can be steered during startup.
+- **Lock-on:** while locked, the camera tracks the target and attacks aim at it. Lock-on breaks beyond 26 m or when the target dies.
+- **Move-cancel:** pressing a direction cancels the back half of any attack's or cast's recovery.
+- **Animation:** placeholder poses are computed every rendered frame and blended. Swings ease in and out, the fighter leans and bobs while running, and the weapon flashes while its hitbox is live.
 
 ### Madra and techniques implementation (M2)
 - **Madra** ranges from 0 to 100. It's stored in hundredths so it stays an integer and the client predicts it exactly.

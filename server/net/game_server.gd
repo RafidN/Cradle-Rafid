@@ -229,6 +229,7 @@ func _spawn_dummies() -> void:
 		var dummy := Dummy.new()
 		dummy.home = config.position
 		dummy.body = _spawn_body(config.name, dummy.home, DUMMY_FACING)
+		dummy.input.set_yaw(DUMMY_FACING)  # Fighters turn to face their input yaw.
 		if config.block:
 			dummy.input.buttons = PlayerInput.BLOCK
 		_dummies.append(dummy)

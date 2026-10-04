@@ -24,8 +24,12 @@ const AIR_ACCEL := 15.0
 const STUN_FRICTION := 15.0
 const GRAVITY := 22.0
 const JUMP_VELOCITY := 8.5
-const TURN_SPEED := 14.0
-const LOCK_TURN_SPEED := 20.0
+## The fighter turns to face where the camera looks (or its lock-on target).
+const FACE_TURN_SPEED := 20.0
+## Attacks and casts can still be steered toward the camera during their startup.
+const STARTUP_STEER_SPEED := 10.0
+## Movement input cancels an attack or cast once this much of its recovery has passed.
+const MOVE_CANCEL_FRACTION := 0.5
 const GROUND_PROBE := 0.08
 
 const DODGE_TICKS := 10
@@ -106,6 +110,16 @@ var hit_targets := {}
 @onready var _model: CharacterModel = $Model
 
 
+func _ready() -> void:
+	set_process(DisplayServer.get_name() != "headless")
+
+
+## Poses the model every rendered frame, between physics ticks, so motion stays smooth.
+func _process(delta: float) -> void:
+	var tick := action_tick + Engine.get_physics_interpolation_fraction()
+	_model.update_pose(action, action_id, tick, visual_flags(), Vector2(velocity.x, velocity.z).length(), delta)
+
+
 func simulate(input: PlayerInput, delta: float) -> void:
 	var grounded := is_grounded()
 	var move := input.get_move()
@@ -120,15 +134,16 @@ func simulate(input: PlayerInput, delta: float) -> void:
 	match action:
 		Action.ATTACK:
 			var attack := Attacks.get_attack(action_id)
-			if action_tick >= attack.total_ticks():
+			var recovery_start := attack.startup + attack.active
+			if action_tick >= attack.total_ticks() or _move_cancels(direction, recovery_start, attack.recovery):
 				_set_action(Action.NONE)
-			elif action_tick >= attack.startup + attack.active and grounded:
+			elif action_tick >= recovery_start and grounded:
 				_try_start_buffered(input, direction, true)
 		Action.TECHNIQUE:
 			var technique := Techniques.get_technique(action_id)
 			if action_tick == technique.startup:
 				_release(technique)
-			if action_tick >= technique.total_ticks():
+			if action_tick >= technique.total_ticks() or _move_cancels(direction, technique.startup + 1, technique.recovery):
 				_set_action(Action.NONE)
 		Action.DODGE:
 			if action_tick >= DODGE_TICKS:
@@ -151,7 +166,7 @@ func simulate(input: PlayerInput, delta: float) -> void:
 	_update_madra()
 	_apply_movement(input, direction, grounded, delta)
 	move_and_slide()
-	_model.apply_pose(action, action_id, action_tick, visual_flags())
+	_model.rotation.y = facing
 
 
 ## Derived from position and velocity only (not move_and_slide's cached floor state),
@@ -272,7 +287,7 @@ func restore_state(state: Dictionary) -> void:
 	cycle_beat = state.cycle_beat
 	exhaust_ticks = state.exhaust_ticks
 	enforcer_active = state.enforcer_active
-	_model.apply_pose(action, action_id, action_tick, visual_flags())
+	_model.rotation.y = facing
 
 
 ## True if a predicted state agrees with the server's. Health is ignored: it never feeds
@@ -347,16 +362,16 @@ func _try_start_buffered(input: PlayerInput, direction: Vector3, from_attack: bo
 		cycle_beat = 0
 
 
-func _start_attack(id: int, input: PlayerInput, direction: Vector3) -> void:
+func _start_attack(id: int, input: PlayerInput, _direction: Vector3) -> void:
 	_consume_buffer()
 	_set_action(Action.ATTACK, id)
 	hit_targets.clear()
-	_face_intent(input, direction)
+	facing = _intent_yaw(input)
 
 
 ## Casting spends madra up front. Overdrawing is allowed: the technique still goes off,
 ## but the pool empties and the artist is exhausted. Turning an Enforcer off is free.
-func _try_cast(technique_id: int, input: PlayerInput, direction: Vector3) -> void:
+func _try_cast(technique_id: int, input: PlayerInput, _direction: Vector3) -> void:
 	_consume_buffer()
 	var technique := Techniques.get_technique(technique_id)
 	if technique == null:
@@ -369,7 +384,7 @@ func _try_cast(technique_id: int, input: PlayerInput, direction: Vector3) -> voi
 		if madra <= 0:
 			_exhaust()
 	_set_action(Action.TECHNIQUE, technique_id)
-	_face_intent(input, direction)
+	facing = _intent_yaw(input)
 
 
 func _release(technique: TechniqueData) -> void:
@@ -424,11 +439,13 @@ func _exhaust() -> void:
 	enforcer_active = false
 
 
-func _face_intent(input: PlayerInput, direction: Vector3) -> void:
-	if input.is_pressed(PlayerInput.LOCKED):
-		facing = input.get_aim()
-	elif direction != Vector3.ZERO:
-		facing = _yaw_of(direction)
+## Where the player wants to face: the lock-on target, or else where the camera looks.
+static func _intent_yaw(input: PlayerInput) -> float:
+	return input.get_aim() if input.is_pressed(PlayerInput.LOCKED) else input.get_yaw()
+
+
+func _move_cancels(direction: Vector3, recovery_start: int, recovery: int) -> bool:
+	return direction.length() > 0.3 and action_tick >= recovery_start + ceili(recovery * MOVE_CANCEL_FRACTION)
 
 
 func _apply_movement(input: PlayerInput, direction: Vector3, grounded: bool, delta: float) -> void:
@@ -444,19 +461,22 @@ func _apply_movement(input: PlayerInput, direction: Vector3, grounded: bool, del
 			if grounded and direction == Vector3.ZERO:
 				rate = GROUND_FRICTION
 			horizontal = horizontal.move_toward(direction * speed, rate * delta)
-			if input.is_pressed(PlayerInput.LOCKED):
-				facing = _turn(facing, input.get_aim(), LOCK_TURN_SPEED * delta)
-			elif action == Action.NONE and direction != Vector3.ZERO:
-				facing = _turn(facing, _yaw_of(direction), TURN_SPEED * delta)
+			facing = _turn(facing, _intent_yaw(input), FACE_TURN_SPEED * delta)
 		Action.ATTACK:
 			var attack := Attacks.get_attack(action_id)
 			var lunge := Vector3.ZERO
+			if action_tick < attack.startup:
+				facing = _turn(facing, _intent_yaw(input), STARTUP_STEER_SPEED * delta)
 			if action_tick < attack.startup + attack.active:
 				lunge = _forward(facing) * attack.lunge_speed
 			horizontal = horizontal.move_toward(lunge, GROUND_FRICTION * delta)
 		Action.DODGE:
 			horizontal = _forward(dodge_yaw) * DODGE_SPEED
-		Action.TECHNIQUE, Action.CYCLE:
+		Action.TECHNIQUE:
+			if action_tick < Techniques.get_technique(action_id).startup:
+				facing = _turn(facing, _intent_yaw(input), STARTUP_STEER_SPEED * delta)
+			horizontal = horizontal.move_toward(Vector3.ZERO, GROUND_FRICTION * delta)
+		Action.CYCLE:
 			horizontal = horizontal.move_toward(Vector3.ZERO, GROUND_FRICTION * delta)
 		_:
 			horizontal = horizontal.move_toward(Vector3.ZERO, STUN_FRICTION * delta)

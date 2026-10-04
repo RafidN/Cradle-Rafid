@@ -14,6 +14,8 @@ var display_name := "..."
 var _states: Array[Dictionary] = []  # snapshot states with "tick", oldest first
 var _fill_mesh := QuadMesh.new()
 var _shown_health := -1
+var _previous_position := Vector3.ZERO
+var _speed := 0.0
 
 @onready var _model: CharacterModel = $Model
 @onready var _name_label: Label3D = $NameLabel
@@ -54,7 +56,7 @@ func is_dead() -> bool:
 	return not _states.is_empty() and _states[-1].action == PlayerBody.Action.DEAD
 
 
-func render(render_tick: float) -> void:
+func render(render_tick: float, delta: float) -> void:
 	if _states.is_empty():
 		return
 	var from: Dictionary = _states[0]
@@ -76,7 +78,11 @@ func render(render_tick: float) -> void:
 	var action_tick: float = from.action_tick
 	if to.action == from.action and to.action_id == from.action_id:
 		action_tick = lerpf(from.action_tick, to.action_tick, weight)
-	_model.apply_pose(from.action, from.action_id, action_tick, from.flags)
+	if delta > 0.0:
+		var moved := global_position - _previous_position
+		_speed = lerpf(_speed, Vector2(moved.x, moved.z).length() / delta, 1.0 - exp(-12.0 * delta))
+	_previous_position = global_position
+	_model.update_pose(from.action, from.action_id, action_tick, from.flags, _speed, delta)
 	_update_health_bar(from.health)
 
 

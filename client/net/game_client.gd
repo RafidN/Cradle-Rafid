@@ -337,7 +337,7 @@ func _process(delta: float) -> void:
 		_server_time += delta * Protocol.TICK_RATE
 		var render_tick := _server_time - INTERP_DELAY_TICKS
 		for remote: RemotePlayer in _remotes.values():
-			remote.render(render_tick)
+			remote.render(render_tick, delta)
 		_effects.render(render_tick)
 
 	if _body:

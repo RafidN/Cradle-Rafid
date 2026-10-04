@@ -42,6 +42,8 @@ func _run() -> void:
 	_test_cycling_rhythm()
 	_test_cycling_regen()
 	_test_technique_hits()
+	_test_faces_camera()
+	_test_move_cancels_recovery()
 
 	print("\n%s" % ("ALL TESTS PASSED" if _failures == 0 else "%d FAILURE(S)" % _failures))
 	quit(1 if _failures > 0 else 0)
@@ -320,6 +322,47 @@ func _test_technique_hits() -> void:
 	_free(pair + fresh + tired)
 
 
+func _test_faces_camera() -> void:
+	var body := _body(Vector3.ZERO, 0.0)
+	var look_left := _input()
+	look_left.set_yaw(PI * 0.5)
+	for i in 10:
+		_step(body, look_left)
+	_check(absf(angle_difference(body.facing, look_left.get_yaw())) < 0.01, "the fighter turns to face the camera")
+
+	var backpedal := _input()
+	backpedal.set_yaw(PI * 0.5)
+	backpedal.set_move(Vector2(0, 1))
+	for i in 10:
+		_step(body, backpedal)
+	_check(absf(angle_difference(body.facing, backpedal.get_yaw())) < 0.01, "moving backward keeps facing the camera")
+
+	var swing := _input(PlayerInput.LIGHT)
+	swing.set_yaw(-PI * 0.5)
+	swing.set_move(Vector2(0, 1))  # Holding back while attacking used to turn around.
+	_step(body, swing)
+	_check(absf(angle_difference(body.facing, swing.get_yaw())) < 0.01, "attacks go where the camera looks")
+	body.free()
+
+
+func _test_move_cancels_recovery() -> void:
+	var body := _body(Vector3.ZERO, 0.0)
+	var attack := Attacks.get_attack(Attacks.HEAVY)
+	_step(body, _input(PlayerInput.HEAVY))
+	var move := _input()
+	move.set_move(Vector2(0, -1))
+	while body.action_tick < attack.startup + attack.active:
+		_step(body, move)
+	_check(body.action == PlayerBody.Action.ATTACK, "moving doesn't cancel startup or active ticks")
+	for i in attack.recovery:
+		_step(body, move)
+		if body.action != PlayerBody.Action.ATTACK:
+			break
+	_check(body.action == PlayerBody.Action.NONE and body.action_tick < attack.total_ticks(),
+		"moving cancels the back half of recovery")
+	body.free()
+
+
 # --- Helpers ------------------------------------------------------------------------
 
 ## Attacker at the origin facing -Z, target 1.5 m in front facing the attacker.
@@ -338,9 +381,12 @@ func _body(at: Vector3, facing: float) -> PlayerBody:
 	return body
 
 
+## Blocks while looking the way the body already faces (fighters turn toward their yaw).
 func _hold_block(body: PlayerBody, ticks: int) -> void:
+	var input := _input(PlayerInput.BLOCK)
+	input.set_yaw(body.facing)
 	for i in ticks:
-		_step(body, _input(PlayerInput.BLOCK))
+		_step(body, input)
 
 
 func _input(buttons := 0) -> PlayerInput:
