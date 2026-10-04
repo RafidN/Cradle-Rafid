@@ -105,7 +105,7 @@ func _start_client(address: String, display_name: String, latency_ms: float,
 	if address.contains(":"):
 		port = address.get_slice(":", 1).to_int()
 	if display_name.is_empty():
-		display_name = "Artist%d" % randi_range(100, 999)
+		display_name = "Practitioner%d" % randi_range(100, 999)
 
 	var conditioner := NetConditioner.new()
 	conditioner.latency_ms = latency_ms

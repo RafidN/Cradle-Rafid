@@ -12,13 +12,13 @@ const DODGE := 1 << 3
 const BLOCK := 1 << 4
 ## Locked on to a target; the aim yaw is valid.
 const LOCKED := 1 << 5
-## Start cycling, or take a breath while cycling.
-const CYCLE := 1 << 6
+## Start meditating, or take a breath while meditating.
+const MEDITATE := 1 << 6
 ## Technique slots 1-4 are bits 7-10; see technique_button().
 const TECHNIQUE_1 := 1 << 7
 const TECHNIQUE_COUNT := 4
 const TECHNIQUE_MASK := ((1 << TECHNIQUE_COUNT) - 1) << 7
-## Held: claim a nearby remnant.
+## Held: claim a nearby echo.
 const INTERACT := 1 << 11
 
 ## Bytes per input on the wire: u32 tick, s8 move x, s8 move y, u16 yaw, u16 buttons,

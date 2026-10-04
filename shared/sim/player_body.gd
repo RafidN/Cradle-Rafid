@@ -1,6 +1,6 @@
 class_name PlayerBody
 extends CharacterBody3D
-## A sacred artist's movement, combat and madra state machine, shared by server and
+## A spirit practitioner's movement, combat and spirit state machine, shared by server and
 ## client. The server runs it authoritatively; the owning client runs the same code on
 ## the same inputs to predict. capture_state() holds everything simulate() reads, so the
 ## client can rewind to a server state and replay.
@@ -10,7 +10,7 @@ extends CharacterBody3D
 ## reports the release through released_technique.
 
 ## New actions go at the end: the values go over the network.
-enum Action { NONE, ATTACK, DODGE, BLOCK, HITSTUN, STAGGER, DEAD, CYCLE, TECHNIQUE }
+enum Action { NONE, ATTACK, DODGE, BLOCK, HITSTUN, STAGGER, DEAD, MEDITATE, TECHNIQUE }
 
 ## Visual flags sent with other fighters.
 const FLAG_ENFORCER := 1 << 0
@@ -46,22 +46,22 @@ const RESPAWN_TICKS := 90
 const MAX_HEALTH := 100
 const MAX_ACTION_TICK := 0xFFFF
 
-## Madra is kept in hundredths so it stays an integer and predicts exactly.
-const MADRA_SCALE := 100
-const MAX_MADRA := 100 * MADRA_SCALE
-## Regen per tick, in hundredths: passive 0.3/s; cycling 1.2/s per (1 + flow), so up to
+## Spirit is kept in hundredths so it stays an integer and predicts exactly.
+const SPIRIT_SCALE := 100
+const MAX_SPIRIT := 100 * SPIRIT_SCALE
+## Regen per tick, in hundredths: passive 0.3/s; meditating 1.2/s per (1 + flow), so up to
 ## 7.2/s at full flow. No regen while blocking, exhausted or with an Enforcer active.
 const PASSIVE_REGEN := 1
-const CYCLE_REGEN := 4
+const MEDITATION_REGEN := 4
 const ENFORCER_DRAIN := 5
 const ENFORCER_SPEED_MULT := 1.2
-## Running dry leaves the artist exhausted: slow, unable to dodge, block or cast.
+## Running dry leaves the practitioner exhausted: slow, unable to dodge, block or cast.
 const EXHAUST_TICKS := 60
 const EXHAUSTED_SPEED_MULT := 0.5
-## Cycling: a breath peaks every CYCLE_BEAT_TICKS. A breath within CYCLE_WINDOW ticks of
+## Meditating: a breath peaks every BREATH_BEAT_TICKS. A breath within BREATH_WINDOW ticks of
 ## the peak raises flow; an off-beat breath breaks it; a skipped peak lowers it.
-const CYCLE_BEAT_TICKS := 45
-const CYCLE_WINDOW := 4
+const BREATH_BEAT_TICKS := 45
+const BREATH_WINDOW := 4
 const MAX_FLOW := 5
 
 ## Hurtbox: an upright capsule, treated as a box of this radius and height for hit tests.
@@ -77,22 +77,22 @@ const ANGLE_EPSILON := 0.01
 const BUFFER_PRIORITY := [
 	PlayerInput.DODGE,
 	PlayerInput.TECHNIQUE_1, PlayerInput.TECHNIQUE_1 << 1, PlayerInput.TECHNIQUE_1 << 2, PlayerInput.TECHNIQUE_1 << 3,
-	PlayerInput.HEAVY, PlayerInput.LIGHT, PlayerInput.CYCLE,
+	PlayerInput.HEAVY, PlayerInput.LIGHT, PlayerInput.MEDITATE,
 ]
 
 var entity_id := 0
 
 # Stats. Set from rank (players) or species (beasts) with apply_stats(); the defaults
-# are a fully unlocked Foundation artist. Not part of the per-tick state.
+# are a fully unlocked Iron practitioner. Not part of the per-tick state.
 var max_health := MAX_HEALTH
-var madra_capacity := MAX_MADRA
+var spirit_capacity := MAX_SPIRIT
 ## Technique slots 0..technique_slots-1 can be cast.
 var technique_slots := PlayerInput.TECHNIQUE_COUNT
 var damage_mult := 1.0
 var knockback_taken_mult := 1.0
 var speed_mult := 1.0
 ## Fighters on the same nonzero team can't hurt each other (beasts are team 1).
-## Team 0 is free-for-all: sacred artists may fight anyone.
+## Team 0 is free-for-all: spirit practitioners may fight anyone.
 var team := 0
 
 ## Yaw the fighter faces. Separate from the camera; attacks go this way.
@@ -109,10 +109,10 @@ var buffered := 0
 var buffer_ticks := 0
 var dodge_cooldown := 0
 var dodge_yaw := 0.0
-var madra := MAX_MADRA
+var spirit := MAX_SPIRIT
 var flow := 0
-## Last cycling beat that was breathed on or missed.
-var cycle_beat := 0
+## Last meditating beat that was breathed on or missed.
+var breath_beat := 0
 var exhaust_ticks := 0
 var enforcer_active := false
 
@@ -169,15 +169,15 @@ func simulate(input: PlayerInput, delta: float) -> void:
 		Action.BLOCK:
 			if not input.is_pressed(PlayerInput.BLOCK) or is_exhausted():
 				_set_action(Action.NONE)
-		Action.CYCLE:
-			_update_cycle(input, direction)
+		Action.MEDITATE:
+			_update_meditation(input, direction)
 
 	if (action == Action.NONE or action == Action.BLOCK) and grounded:
 		_try_start_buffered(input, direction, false)
 		if action == Action.NONE and input.is_pressed(PlayerInput.BLOCK) and not is_exhausted():
 			_set_action(Action.BLOCK)
 
-	_update_madra()
+	_update_spirit()
 	_apply_movement(input, direction, grounded, delta)
 	move_and_slide()
 	_model.rotation.y = facing
@@ -222,7 +222,7 @@ func visual_flags() -> int:
 
 ## Whether a technique slot could be cast right now, ignoring cost (overdrawing is allowed).
 func can_cast() -> bool:
-	return not is_exhausted() and madra > 0
+	return not is_exhausted() and spirit > 0
 
 
 func forward() -> Vector3:
@@ -254,22 +254,22 @@ func respawn(at: Vector3, new_facing: float) -> void:
 		"position": at, "velocity": Vector3.ZERO, "facing": new_facing, "dodge_yaw": 0.0,
 		"health": max_health, "action": Action.NONE, "action_id": 0, "action_tick": 0,
 		"action_length": 0, "buffered": 0, "buffer_ticks": 0, "dodge_cooldown": 0,
-		"madra": madra_capacity, "flow": 0, "cycle_beat": 0, "exhaust_ticks": 0,
+		"spirit": spirit_capacity, "flow": 0, "breath_beat": 0, "exhaust_ticks": 0,
 		"enforcer_active": false,
 	})
 
 
-## Applies rank or species stats. Health and madra are clamped to the new maximums.
-func apply_stats(new_max_health: int, new_madra_capacity: int, new_technique_slots: int,
+## Applies rank or species stats. Health and spirit are clamped to the new maximums.
+func apply_stats(new_max_health: int, new_spirit_capacity: int, new_technique_slots: int,
 		new_damage_mult: float, new_knockback_taken_mult: float, new_speed_mult: float) -> void:
 	max_health = new_max_health
-	madra_capacity = new_madra_capacity
+	spirit_capacity = new_spirit_capacity
 	technique_slots = new_technique_slots
 	damage_mult = new_damage_mult
 	knockback_taken_mult = new_knockback_taken_mult
 	speed_mult = new_speed_mult
 	health = mini(health, max_health)
-	madra = mini(madra, madra_capacity)
+	spirit = mini(spirit, spirit_capacity)
 
 
 # --- State capture for prediction ---------------------------------------------------
@@ -288,9 +288,9 @@ func capture_state() -> Dictionary:
 		"buffered": buffered,
 		"buffer_ticks": buffer_ticks,
 		"dodge_cooldown": dodge_cooldown,
-		"madra": madra,
+		"spirit": spirit,
 		"flow": flow,
-		"cycle_beat": cycle_beat,
+		"breath_beat": breath_beat,
 		"exhaust_ticks": exhaust_ticks,
 		"enforcer_active": enforcer_active,
 	}
@@ -309,9 +309,9 @@ func restore_state(state: Dictionary) -> void:
 	buffered = state.buffered
 	buffer_ticks = state.buffer_ticks
 	dodge_cooldown = state.dodge_cooldown
-	madra = state.madra
+	spirit = state.spirit
 	flow = state.flow
-	cycle_beat = state.cycle_beat
+	breath_beat = state.breath_beat
 	exhaust_ticks = state.exhaust_ticks
 	enforcer_active = state.enforcer_active
 	_model.rotation.y = facing
@@ -331,9 +331,9 @@ static func states_match(a: Dictionary, b: Dictionary) -> bool:
 		and a.buffered == b.buffered
 		and a.buffer_ticks == b.buffer_ticks
 		and a.dodge_cooldown == b.dodge_cooldown
-		and a.madra == b.madra
+		and a.spirit == b.spirit
 		and a.flow == b.flow
-		and a.cycle_beat == b.cycle_beat
+		and a.breath_beat == b.breath_beat
 		and a.exhaust_ticks == b.exhaust_ticks
 		and a.enforcer_active == b.enforcer_active)
 
@@ -346,8 +346,8 @@ func _update_buffer(input: PlayerInput) -> void:
 		if buffer_ticks == 0:
 			buffered = 0
 	for button: int in BUFFER_PRIORITY:
-		# While cycling, the cycle button is a breath, not an action to buffer.
-		if button == PlayerInput.CYCLE and action == Action.CYCLE:
+		# While meditating, the meditate button is a breath, not an action to buffer.
+		if button == PlayerInput.MEDITATE and action == Action.MEDITATE:
 			continue
 		if input.is_pressed(button):
 			buffered = button
@@ -382,11 +382,12 @@ func _try_start_buffered(input: PlayerInput, direction: Vector3, from_attack: bo
 	elif buffered == PlayerInput.HEAVY:
 		if not (from_attack and action_id == Attacks.HEAVY):
 			_start_attack(Attacks.HEAVY, input, direction)
-	elif buffered == PlayerInput.CYCLE and action == Action.NONE:
+	elif buffered == PlayerInput.MEDITATE and action == Action.NONE:
 		_consume_buffer()
-		_set_action(Action.CYCLE)
+		_set_action(Action.MEDITATE)
 		flow = 0
-		cycle_beat = 0
+		breath_beat = 0
+		enforcer_active = false  # Sitting to meditate releases an Enforcer technique.
 
 
 func _start_attack(id: int, input: PlayerInput, _direction: Vector3) -> void:
@@ -396,8 +397,8 @@ func _start_attack(id: int, input: PlayerInput, _direction: Vector3) -> void:
 	facing = _intent_yaw(input)
 
 
-## Casting spends madra up front. Overdrawing is allowed: the technique still goes off,
-## but the pool empties and the artist is exhausted. Turning an Enforcer off is free.
+## Casting spends spirit up front. Overdrawing is allowed: the technique still goes off,
+## but the pool empties and the practitioner is exhausted. Turning an Enforcer off is free.
 func _try_cast(technique_id: int, input: PlayerInput, _direction: Vector3) -> void:
 	_consume_buffer()
 	var technique := Techniques.get_technique(technique_id)
@@ -407,8 +408,8 @@ func _try_cast(technique_id: int, input: PlayerInput, _direction: Vector3) -> vo
 	if not toggling_off:
 		if not can_cast():
 			return
-		madra -= technique.cost * MADRA_SCALE
-		if madra <= 0:
+		spirit -= technique.cost * SPIRIT_SCALE
+		if spirit <= 0:
 			_exhaust()
 	_set_action(Action.TECHNIQUE, technique_id)
 	facing = _intent_yaw(input)
@@ -420,48 +421,48 @@ func _release(technique: TechniqueData) -> void:
 		enforcer_active = not enforcer_active and not is_exhausted()
 
 
-func _update_cycle(input: PlayerInput, direction: Vector3) -> void:
+func _update_meditation(input: PlayerInput, direction: Vector3) -> void:
 	if direction.length() > 0.3 or input.is_pressed(PlayerInput.BLOCK) or buffered != 0:
 		_set_action(Action.NONE)
 		flow = 0
 		return
 	var tick := action_tick
-	if input.is_pressed(PlayerInput.CYCLE):
-		var beat := (tick + CYCLE_BEAT_TICKS / 2) / CYCLE_BEAT_TICKS
-		if beat >= 1 and absi(tick - beat * CYCLE_BEAT_TICKS) <= CYCLE_WINDOW and cycle_beat < beat:
+	if input.is_pressed(PlayerInput.MEDITATE):
+		var beat := (tick + BREATH_BEAT_TICKS / 2) / BREATH_BEAT_TICKS
+		if beat >= 1 and absi(tick - beat * BREATH_BEAT_TICKS) <= BREATH_WINDOW and breath_beat < beat:
 			flow = mini(flow + 1, MAX_FLOW)
 		else:
 			flow = 0  # Off-beat or a second breath on the same beat.
-		cycle_beat = maxi(cycle_beat, beat)
-	elif tick > CYCLE_WINDOW and (tick - CYCLE_WINDOW - 1) % CYCLE_BEAT_TICKS == 0:
-		var missed := (tick - CYCLE_WINDOW - 1) / CYCLE_BEAT_TICKS
-		if missed >= 1 and cycle_beat < missed:
+		breath_beat = maxi(breath_beat, beat)
+	elif tick > BREATH_WINDOW and (tick - BREATH_WINDOW - 1) % BREATH_BEAT_TICKS == 0:
+		var missed := (tick - BREATH_WINDOW - 1) / BREATH_BEAT_TICKS
+		if missed >= 1 and breath_beat < missed:
 			flow = maxi(flow - 1, 0)
-			cycle_beat = missed
+			breath_beat = missed
 	# Keep counters small during very long sessions; beat timing is unchanged.
-	if action_tick >= CYCLE_BEAT_TICKS * 1000:
-		action_tick -= CYCLE_BEAT_TICKS * 900
-		cycle_beat -= 900
+	if action_tick >= BREATH_BEAT_TICKS * 1000:
+		action_tick -= BREATH_BEAT_TICKS * 900
+		breath_beat -= 900
 
 
-func _update_madra() -> void:
+func _update_spirit() -> void:
 	if enforcer_active:
-		madra -= ENFORCER_DRAIN
-		if madra <= 0:
+		spirit -= ENFORCER_DRAIN
+		if spirit <= 0:
 			_exhaust()
 		return
 	if is_exhausted() or action == Action.DEAD:
 		return
 	var regen := PASSIVE_REGEN
-	if action == Action.CYCLE:
-		regen = CYCLE_REGEN * (1 + flow)
+	if action == Action.MEDITATE:
+		regen = MEDITATION_REGEN * (1 + flow)
 	elif action == Action.BLOCK:
 		regen = 0
-	madra = mini(madra + regen, madra_capacity)
+	spirit = mini(spirit + regen, spirit_capacity)
 
 
 func _exhaust() -> void:
-	madra = 0
+	spirit = 0
 	exhaust_ticks = EXHAUST_TICKS
 	enforcer_active = false
 
@@ -503,7 +504,7 @@ func _apply_movement(input: PlayerInput, direction: Vector3, grounded: bool, del
 			if action_tick < Techniques.get_technique(action_id).startup:
 				facing = _turn(facing, _intent_yaw(input), STARTUP_STEER_SPEED * delta)
 			horizontal = horizontal.move_toward(Vector3.ZERO, GROUND_FRICTION * delta)
-		Action.CYCLE:
+		Action.MEDITATE:
 			horizontal = horizontal.move_toward(Vector3.ZERO, GROUND_FRICTION * delta)
 		_:
 			horizontal = horizontal.move_toward(Vector3.ZERO, STUN_FRICTION * delta)

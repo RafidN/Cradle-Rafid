@@ -44,32 +44,32 @@ async function heartbeat(id = "shard-1", players = 0, world = "alpha", zone = "p
 }
 
 test("register, log in, and reject bad credentials", async () => {
-  const reg = await api("POST", "/auth/register", { username: "lindon", password: "blackflame" });
+  const reg = await api("POST", "/auth/register", { username: "tavian", password: "emberheart" });
   assert.equal(reg.status, 201);
   assert.match(reg.data.token, /^[0-9a-f]{64}$/);
 
-  assert.equal((await api("POST", "/auth/register", { username: "LINDON", password: "something8" })).status, 409, "usernames are case-insensitive");
-  assert.equal((await api("POST", "/auth/register", { username: "x", password: "blackflame" })).status, 400);
-  assert.equal((await api("POST", "/auth/register", { username: "yerin", password: "short" })).status, 400);
+  assert.equal((await api("POST", "/auth/register", { username: "TAVIAN", password: "something8" })).status, 409, "usernames are case-insensitive");
+  assert.equal((await api("POST", "/auth/register", { username: "x", password: "emberheart" })).status, 400);
+  assert.equal((await api("POST", "/auth/register", { username: "isolde", password: "short" })).status, 400);
 
-  assert.equal((await api("POST", "/auth/login", { username: "lindon", password: "blackflame" })).status, 200);
-  assert.equal((await api("POST", "/auth/login", { username: "lindon", password: "wrongpass" })).status, 401);
+  assert.equal((await api("POST", "/auth/login", { username: "tavian", password: "emberheart" })).status, 200);
+  assert.equal((await api("POST", "/auth/login", { username: "tavian", password: "wrongpass" })).status, 401);
   assert.equal((await api("POST", "/auth/login", { username: "nobody", password: "whatever1" })).status, 401);
 });
 
 test("characters belong to their account and have unique names", async () => {
-  const { data: a } = await api("POST", "/auth/register", { username: "eithan", password: "password1" });
-  const { data: b } = await api("POST", "/auth/register", { username: "mercy", password: "password2" });
+  const { data: a } = await api("POST", "/auth/register", { username: "corwin", password: "password1" });
+  const { data: b } = await api("POST", "/auth/register", { username: "maren", password: "password2" });
 
   assert.equal((await api("GET", "/characters")).status, 401, "needs a session");
-  const created = await api("POST", "/characters", { name: "Wei" }, auth(a.token));
+  const created = await api("POST", "/characters", { name: "Tavi" }, auth(a.token));
   assert.equal(created.status, 201);
-  assert.equal((await api("POST", "/characters", { name: "wei" }, auth(b.token))).status, 409, "names are globally unique");
+  assert.equal((await api("POST", "/characters", { name: "tavi" }, auth(b.token))).status, 409, "names are globally unique");
   assert.equal((await api("POST", "/characters", { name: "9lives" }, auth(b.token))).status, 400);
 
   const listA = await api("GET", "/characters", undefined, auth(a.token));
   const listB = await api("GET", "/characters", undefined, auth(b.token));
-  assert.deepEqual(listA.data.characters.map((c: any) => c.name), ["Wei"]);
+  assert.deepEqual(listA.data.characters.map((c: any) => c.name), ["Tavi"]);
   assert.deepEqual(listB.data.characters, []);
 
   for (const name of ["Two", "Three"]) await api("POST", "/characters", { name }, auth(a.token));
@@ -77,8 +77,8 @@ test("characters belong to their account and have unique names", async () => {
 });
 
 test("joining: tickets, redemption, saving, and rejoining", async () => {
-  const { data: account } = await api("POST", "/auth/register", { username: "orthos", password: "password3" });
-  const { data: made } = await api("POST", "/characters", { name: "Orthos" }, auth(account.token));
+  const { data: account } = await api("POST", "/auth/register", { username: "borin", password: "password3" });
+  const { data: made } = await api("POST", "/characters", { name: "Borin" }, auth(account.token));
   const id = made.character.id;
 
   await db.query("DELETE FROM shards");
@@ -92,14 +92,14 @@ test("joining: tickets, redemption, saving, and rejoining", async () => {
   assert.equal((await api("POST", "/internal/tickets/redeem", { ticket: join.data.ticket })).status, 403, "needs the server secret");
   const redeemed = await api("POST", "/internal/tickets/redeem", { ticket: join.data.ticket, shard_id: "shard-1" }, server_);
   assert.equal(redeemed.status, 200);
-  assert.equal(redeemed.data.character.name, "Orthos");
+  assert.equal(redeemed.data.character.name, "Borin");
   assert.equal((await api("POST", "/internal/tickets/redeem", { ticket: join.data.ticket }, server_)).status, 404, "tickets are single-use");
 
   await heartbeat("shard-2", 0);
   const rejoin = await api("POST", `/characters/${id}/join`, undefined, auth(account.token));
   assert.equal(rejoin.data.shard.id, "shard-1", "rejoining while online goes back to the same shard");
 
-  const progress = { rank: 1, essence: [3, 40, 0], bindings: [0, 1] };
+  const progress = { rank: 1, essence: [3, 40, 0], sigils: [0, 1] };
   assert.equal((await api("PUT", `/internal/characters/${id}/progress`, { progress }, server_)).status, 200);
   assert.equal((await api("POST", `/internal/characters/${id}/left`, { progress: { ...progress, rank: 2 } }, server_)).status, 200);
 
@@ -109,16 +109,16 @@ test("joining: tickets, redemption, saving, and rejoining", async () => {
 });
 
 test("another account can't join with your character", async () => {
-  const { data: owner } = await api("POST", "/auth/register", { username: "ziel", password: "password4" });
+  const { data: owner } = await api("POST", "/auth/register", { username: "daros", password: "password4" });
   const { data: thief } = await api("POST", "/auth/register", { username: "thief", password: "password5" });
-  const { data: made } = await api("POST", "/characters", { name: "Ziel" }, auth(owner.token));
+  const { data: made } = await api("POST", "/characters", { name: "Daros" }, auth(owner.token));
   await heartbeat();
   assert.equal((await api("POST", `/characters/${made.character.id}/join`, undefined, auth(thief.token))).status, 404);
 });
 
 test("full shards and dead shards aren't offered", async () => {
-  const { data: account } = await api("POST", "/auth/register", { username: "charity", password: "password6" });
-  const { data: made } = await api("POST", "/characters", { name: "Charity" }, auth(account.token));
+  const { data: account } = await api("POST", "/auth/register", { username: "selene", password: "password6" });
+  const { data: made } = await api("POST", "/characters", { name: "Selene" }, auth(account.token));
   await db.query("DELETE FROM shards");
   await heartbeat("full", 2);
   assert.equal((await api("POST", `/characters/${made.character.id}/join`, undefined, auth(account.token))).status, 503);
@@ -135,8 +135,8 @@ test("zone transfers stay in the character's world and remember the zone", async
   await heartbeat("alpha/wilds", 1, "alpha", "ember_wilds", 7002);
   await heartbeat("beta/wilds", 0, "beta", "ember_wilds", 7004);
 
-  const { data: account } = await api("POST", "/auth/register", { username: "sophara", password: "password7" });
-  const { data: made } = await api("POST", "/characters", { name: "Sophara" }, auth(account.token));
+  const { data: account } = await api("POST", "/auth/register", { username: "oriane", password: "password7" });
+  const { data: made } = await api("POST", "/characters", { name: "Oriane" }, auth(account.token));
   const id = made.character.id;
 
   const join = await api("POST", `/characters/${id}/join`, undefined, auth(account.token));

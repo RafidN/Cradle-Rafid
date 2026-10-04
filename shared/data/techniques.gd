@@ -1,11 +1,11 @@
 class_name Techniques
 extends RefCounted
 ## Registry of every technique; a technique's id is its index in ALL. For now every
-## sacred artist follows the Path of Kindled Flame, and technique slot N casts id N.
+## spirit practitioner follows the Way of Kindled Flame, and technique slot N casts id N.
 
 enum { FLAME_BODY, EMBER_LANCE, SEARING_RING, CINDER_TRAP }
 
-const PATH_NAME := "Path of Kindled Flame"
+const WAY_NAME := "Way of Kindled Flame"
 const ALL := [
 	preload("res://shared/data/techniques/flame_body.tres"),
 	preload("res://shared/data/techniques/ember_lance.tres"),

@@ -21,7 +21,7 @@ sleep 1
 
 for i in $(seq 1 "$CLIENTS"); do
   "$GODOT" --path "$ROOT" --resolution 800x450 --position "$((40 + (i - 1) * 820)),80" -- \
-    --connect=127.0.0.1 --name="Artist$i" --latency="$LATENCY" --jitter="$JITTER" --loss="$LOSS" &
+    --connect=127.0.0.1 --name="Practitioner$i" --latency="$LATENCY" --jitter="$JITTER" --loss="$LOSS" &
   PIDS+=($!)
 done
 

@@ -1,7 +1,7 @@
 class_name TechniqueEffects
 extends RefCounted
-## Server-side results of released techniques: Striker projectiles, Ruler bursts and
-## Forger traps. Enforcers need nothing here; they live in the fighter simulation.
+## Server-side results of released techniques: Lancer projectiles, Controller bursts and
+## Builder traps. Enforcers need nothing here; they live in the fighter simulation.
 ##
 ## Lag compensation: a projectile remembers how far behind the server its caster's view
 ## was when it was cast, and tests targets rewound by that much for its whole flight,
@@ -51,7 +51,7 @@ var _next_id := 1
 func release(caster: PlayerBody, technique_id: int, tick: int, view_tick: float, bodies: Array) -> void:
 	var technique := Techniques.get_technique(technique_id)
 	match technique.kind:
-		TechniqueData.Kind.STRIKER:
+		TechniqueData.Kind.LANCER:
 			var projectile := Projectile.new()
 			projectile.id = _take_id()
 			projectile.owner_id = caster.entity_id
@@ -60,7 +60,7 @@ func release(caster: PlayerBody, technique_id: int, tick: int, view_tick: float,
 			projectile.velocity = caster.forward() * technique.speed
 			projectile.lag_ticks = clampf(tick - view_tick, 0.0, max_rewind_ticks)
 			_projectiles.append(projectile)
-		TechniqueData.Kind.RULER:
+		TechniqueData.Kind.CONTROLLER:
 			var rewind_to := clampf(view_tick, tick - max_rewind_ticks, tick - 1)
 			burst.call(caster.entity_id, technique_id, caster.global_position)
 			for target: PlayerBody in bodies:
@@ -72,7 +72,7 @@ func release(caster: PlayerBody, technique_id: int, tick: int, view_tick: float,
 					continue
 				if not _dodged(target, rewind_to):
 					land_hit.call(caster, target, Combat.technique_spec(caster, technique), caster.global_position, technique_id)
-		TechniqueData.Kind.FORGER:
+		TechniqueData.Kind.BUILDER:
 			var trap := Trap.new()
 			trap.id = _take_id()
 			trap.owner_id = caster.entity_id

@@ -2,7 +2,7 @@
 
 Where the game is going, and the order to build it in. It's written for a **solo, part-time** developer working with Claude. Decisions and open questions are recorded so later work doesn't re-argue them.
 
-> **Status:** draft for review. Two things need your sign-off before Phase 0 starts: the **lexicon** (§3) and the **Early Access scope** (§5).
+> **Status:** the lexicon (§3) is decided and applied. The Early Access scope (§5) still needs sign-off.
 
 ---
 
@@ -14,12 +14,12 @@ A third-person action MMO about cultivating inner power, inspired by progression
 - **Ways and Houses:** you choose one **Way** (Path) by doing a mentor's quest line, and you're locked in after that.
   - Every Way belongs to exactly one **House** (Family). Joining it gives you the House's surname, its home city, and House quests.
 - **Talent tree:** four branches, one per discipline.
-- **Power tiers instead of levels:** the first seven tiers fill with power earned from fighting, quests, attunement and echoes, much like XP. Tiers beyond those are **locked behind achievements**: deeds and trials, not grinding.
+- **Power tiers instead of levels:** the first seven tiers fill with power earned from fighting, quests, meditation and echoes, much like XP. Tiers beyond those are **locked behind achievements**: deeds and trials, not grinding.
 - **No forced main story.** Content comes from Way quests, House quests and side quests.
 - **5-player dungeons** with intricate boss mechanics. They drop high-tier items appropriate to your power.
 - **Instanced PvP:** 1v1 and 2v2 arenas, and a 10v10 battleground. There are queues, ranked play, ratings and seasons.
 - **Art:** low-poly but good-looking, eventually produced through a 3D-generation MCP.
-- **Original IP:** nothing from the Cradle books.
+- **Original IP:** the game uses only its own vocabulary (§3).
 
 ## 2. A reality check, and the strategy
 
@@ -37,28 +37,25 @@ This is an MMO with dungeons, ranked PvP and a quest-driven world, built by one 
 4. **The server keeps final authority over everything that matters:** combat (already), loot, quests and trades. That's the cheapest anti-cheat, and Steam games get attacked.
 5. **Claude writes most of the code. Your time goes to** design decisions, playtesting, art direction and community. The roadmap is ordered so your playtests stay meaningful at every step.
 
-## 3. Lexicon: replacing Cradle terms (decision: now)
+## 3. Lexicon (decided, applied in code)
 
-Every name below is a **draft for you to edit**. Once approved, Phase 0 renames the code, data, UI, protocol, saves and docs in one pass, and adds a test that fails if a Cradle term reappears.
+The game's own vocabulary. It replaced every borrowed term in the code, data, UI and docs. A test (`_test_no_borrowed_terms`) fails if an old term comes back.
 
-| Cradle term | Proposed | Notes |
-|---|---|---|
-| madra | **Aether** | Inner power; "aether pool", "aether capacity" |
-| cycling | **Attunement** (verb: *attune*) | The breathing minigame |
-| sacred artist | **Adept** | |
-| sacred beast | **Spirit beast** | A generic genre term |
-| remnant | **Echo** | What the fallen leave behind |
-| essence | **Essence** | Generic; keep |
-| binding | **Sigil** | Crafted from essence |
-| Path | **Way** | "Way of the Kindled Flame" |
-| Family | **House** | The surname is the House name |
-| Enforcer / Striker / Ruler / Forger | **Tempered / Lancer / Warden / Artificer** | The four disciplines: self-empowerment / projectiles / area control / constructs |
-| Foundation → Copper → Iron → Jade → Lowgold → Highgold → True Gold | **Clay → Bronze → Steel → Obsidian → Silver → Gold → Starmetal** | "The adept is refined like a metal." Bronze is the first tier with aether techniques. |
-| Underlord and beyond | **Ascendant → Exalted → Sovereign** | The achievement-locked tiers |
-| Iron body | **Steel body** | The body sigil needed to reach Steel |
-| "Cradle" (game title) | **TBD** | Needed before the Steam store page. Rename the repo too. |
-
-Some terms, like "aspect" (fire, earth, wind), "core" and "technique", are ordinary genre words and can stay.
+| Term | Meaning |
+|---|---|
+| **Spirit Power** (often just "spirit") | A practitioner's inner power. It has a pool and a capacity, and techniques spend it. |
+| **Meditation** (verb: *meditate*) | The breathing minigame that restores spirit power. Breathing on the beat builds *flow*. |
+| **Spirit Practitioner** ("practitioner") | A player character, or any human who cultivates spirit power |
+| **Spirit beast** | A beast that cultivates spirit power |
+| **Echo** | What the fallen leave behind. Claim it for essence. |
+| **Essence** | Fire, earth or wind, drawn from echoes. Spent on sigils and advancement. |
+| **Sigil** | Crafted from essence. For example, the Tempered Body Sigil is required to reach Silver. |
+| **Way** | A school of techniques. Chosen through a mentor's quest line, and permanent. |
+| **House** | The family that teaches a Way (one Way per House). Your surname, home city and House quests. |
+| **Enforcer / Lancer / Controller / Builder** | The four disciplines and talent branches: self-empowerment / projectiles / area control / constructs |
+| **Iron → Bronze → Silver → Gold → Platinum → Diamond** | Power tiers. They fill with power, like XP. Iron is the starting tier. |
+| **Master → Ascendant → Heavenly** | Tiers locked behind achievements, above Diamond |
+| **Cradle** | *Working title only.* It needs a real name before the Steam page; rename the repo then too. |
 
 ## 4. Design decisions so far
 
@@ -68,8 +65,8 @@ Some terms, like "aspect" (fire, earth, wind), "core" and "technique", are ordin
 | Talent tree | 4 branches, one per discipline. Your chosen discipline gets a permanent +3 points in its own branch. Your Way decides your techniques and element. |
 | Ways and Houses | One Way per House. Each House has a surname, a home city, House quests and a mentor quest line. |
 | Way choice | Made by finishing a mentor's quest line. Permanent. *(A paid or long-quest "renounce your Way" option is a possible later addition.)* |
-| Progression | Clay through Starmetal fill with **power**, like XP, from combat, quests, attunement and echoes. Each tier raises stats and grants talent points. Ascendant and above need **achievements or trials**. |
-| Rebrand | Now, before more content exists |
+| Progression | Iron through Diamond fill with **power**, like XP, from combat, quests, meditation and echoes. Each tier raises stats and grants talent points. Master and above need **achievements or trials**. |
+| Rebrand | Done: the lexicon in §3. The title is still to be decided. |
 | Art | Low-poly, stylized. Placeholder CC0 assets until the 3D-generation MCP is connected. |
 | Story | No forced main story. Way, House and side quests only. |
 
@@ -79,14 +76,14 @@ Some terms, like "aspect" (fire, earth, wind), "core" and "technique", are ordin
 3. **Death penalty and open-world PvP rules:** today the arena is free-for-all. Should cities be safe zones? Should killing players be flagged?
 4. **Economy:** player trading, an auction house, crafting professions?
 5. **Character customization depth:** preset faces plus colors (cheap), or sliders and blend shapes (expensive)?
-6. **What sits above Starmetal at launch**, and what the first achievement trial is.
+6. **What sits above Diamond at launch**, and what the first achievement trial is.
 
 ## 5. Phases
 
 Estimates are **calendar time at roughly 10–15 hours a week**, and they're rough. Each phase ends with something to playtest.
 
 ### Phase 0: Foundations for the long haul (≈3–5 weeks)
-- **Rebrand:** apply the lexicon (§3) everywhere, with a test that guards against old terms coming back.
+- ✅ **Rebrand:** the lexicon (§3) is applied everywhere, with a test that guards against old terms coming back. The game title is still to be decided.
 - **Data-driven content:** move techniques, beasts, zones, ranks and sigils into authored resource files. Validation tests check every reference, the way the zone test does now.
 - **Character data model in the backend:** appearance, discipline, Way, House, power, talents, inventory and quest log. Use versioned save migrations so old characters keep loading.
 - **Deployability:**
@@ -113,15 +110,15 @@ Estimates are **calendar time at roughly 10–15 hours a week**, and they're rou
 - **Beasts get real models.** Hitboxes stay capsules; the netcode doesn't change.
 
 ### Phase 2: Power, tiers and talents (≈4–6 weeks)
-- **Power progression:** a power meter filled by combat, echoes, quests and attunement, from Clay to Starmetal. Breakthroughs still happen while attuning. Each tier raises stats and grants talent points.
+- **Power progression:** a power meter filled by combat, echoes, quests and meditation, from Iron to Diamond. Breakthroughs still happen while meditating. Each tier raises stats and grants talent points.
 - **Talent tree:** 4 branches × roughly 15 talents each, mixing passives, technique modifiers and some new technique slots.
   - Talents that affect movement or combat live in the shared simulation, so prediction stays exact. That's the same rule the current techniques follow.
 - **Respec** with a cost.
-- **Achievement framework:** tracks deeds across the game. It drives the tiers above Starmetal, titles and Steam achievements later.
+- **Achievement framework:** tracks deeds across the game. It drives the tiers above Diamond, titles and Steam achievements later.
 
 ### Phase 3: Ways, Houses and quests (≈10–14 weeks), the heart of the game
 - **Quest system** (data-driven, with all checks on the server):
-  - Objectives: talk, kill, collect, explore, escort, attune somewhere, claim an echo, defeat a rival.
+  - Objectives: talk, kill, collect, explore, escort, meditate somewhere, claim an echo, defeat a rival.
   - Quest chains and prerequisites.
   - Dialogue trees with NPC portraits and voices *(stretch)*.
   - Quest log and tracker UI, a world map and a minimap.
@@ -170,7 +167,7 @@ Estimates are **calendar time at roughly 10–15 hours a week**, and they're rou
 
 ### After Early Access
 - More Houses and Ways, zones and dungeons. Each one is mostly content work at that point.
-- 10v10 battlegrounds, ranked seasons, and the achievement tiers above Starmetal (Ascendant and beyond).
+- 10v10 battlegrounds, ranked seasons, and the achievement tiers above Diamond (Master and beyond).
 - World events, House-versus-House conflicts, crafting, mounts, housing, and anything else the community asks for.
 
 ## 6. Systems you didn't mention that an MMO will need

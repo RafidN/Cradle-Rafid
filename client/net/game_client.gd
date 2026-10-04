@@ -63,7 +63,7 @@ var _progress := ProgressState.new()
 var _claim := 0.0
 var _lock_target_id := -1
 var _zone_id := Zones.DEFAULT
-var _bot_cycling := false
+var _bot_meditating := false
 var _bot_request_cooldown := 0
 var _display_name := ""
 var _ticket := ""
@@ -147,8 +147,8 @@ func _ready() -> void:
 	_hud.progression_panel.advance_requested.connect(_request_advance)
 
 
-func _request_craft(binding: int) -> void:
-	_transport.send(1, Protocol.encode_request(Protocol.Request.CRAFT_BINDING, binding), true)
+func _request_craft(sigil: int) -> void:
+	_transport.send(1, Protocol.encode_request(Protocol.Request.CRAFT_SIGIL, sigil), true)
 
 
 func _request_advance() -> void:
@@ -263,7 +263,7 @@ func _on_snapshot(snapshot: Dictionary) -> void:
 		if remote == null:
 			remote = REMOTE_PLAYER_SCENE.instantiate()
 			_entities.add_child(remote)
-			remote.configure(_info.get(other.id, {"name": "...", "kind": Protocol.EntityKind.ARTIST, "species": 0,
+			remote.configure(_info.get(other.id, {"name": "...", "kind": Protocol.EntityKind.PRACTITIONER, "species": 0,
 				"rank": 0, "max_health": PlayerBody.MAX_HEALTH}))
 			_remotes[other.id] = remote
 		remote.push_state(snapshot.tick, other)
@@ -291,7 +291,7 @@ func _on_burst(burst: Dictionary) -> void:
 	var technique := Techniques.get_technique(burst.technique)
 	if technique == null:
 		return
-	if burst.caster == _entity_id and technique.kind == TechniqueData.Kind.RULER:
+	if burst.caster == _entity_id and technique.kind == TechniqueData.Kind.CONTROLLER:
 		return  # Already shown when our own cast released.
 	_effects.spawn_burst(burst.position, technique.radius)
 
@@ -357,10 +357,10 @@ func _reconcile(snapshot: Dictionary, delta: float) -> void:
 ## for fresh ticks, never during reconciliation replay.
 func _show_own_release(technique: TechniqueData) -> void:
 	match technique.kind:
-		TechniqueData.Kind.STRIKER:
+		TechniqueData.Kind.LANCER:
 			var origin := _body.global_position + Vector3.UP * TechniqueEffects.PROJECTILE_HEIGHT + _body.forward() * 0.6
 			_effects.spawn_predicted_projectile(origin, _body.forward() * technique.speed, technique.max_range)
-		TechniqueData.Kind.RULER:
+		TechniqueData.Kind.CONTROLLER:
 			_effects.spawn_burst(_body.global_position, technique.radius)
 
 
@@ -444,11 +444,11 @@ func _update_hud() -> void:
 	var target: RemotePlayer = _remotes.get(_lock_target_id)
 	var state := target.latest_state() if target else {}
 	_hud.show_target("%s  —  %d / %d" % [target.display_name, state.get("health", 0), target.max_health] if target else "")
-	var near_remnant := _body.action == PlayerBody.Action.NONE \
-		and not _effects.nearest_remnant(_body.global_position, RemnantField.CLAIM_RADIUS, _entity_id).is_empty()
-	_hud.show_claim(_claim, near_remnant)
+	var near_echo := _body.action == PlayerBody.Action.NONE \
+		and not _effects.nearest_echo(_body.global_position, EchoField.CLAIM_RADIUS, _entity_id).is_empty()
+	_hud.show_claim(_claim, near_echo)
 	if _hud.progression_panel.visible:
-		_hud.progression_panel.show_progress(_progress, _body.action == PlayerBody.Action.CYCLE)
+		_hud.progression_panel.show_progress(_progress, _body.action == PlayerBody.Action.MEDITATE)
 
 
 func _stats_text() -> String:
@@ -457,8 +457,8 @@ func _stats_text() -> String:
 			Advancement.rank_name(_progress.rank), _remotes.size() + 1],
 		"Input RTT: %s" % ("%d ms" % _rtt_ms if _rtt_ms >= 0.0 else "-"),
 		"Unacked inputs: %d  |  Corrections: %d" % [_history.size(), _corrections],
-		"HP: %d  |  Madra: %d  |  Hits landed: %d  |  Hits taken: %d" % [_body.health if _body else 0,
-			_body.madra / PlayerBody.MADRA_SCALE if _body else 0, _hits_landed, _hits_taken],
+		"HP: %d  |  Spirit: %d  |  Hits landed: %d  |  Hits taken: %d" % [_body.health if _body else 0,
+			_body.spirit / PlayerBody.SPIRIT_SCALE if _body else 0, _hits_landed, _hits_taken],
 		"Snapshots: %d" % _snapshots,
 	])
 	if _transport.conditioner:
@@ -468,9 +468,9 @@ func _stats_text() -> String:
 
 # --- Bot ----------------------------------------------------------------------------
 
-## Chases the nearest living fighter and cycles through light combos, heavies, blocks,
-## dodges and all four techniques, and sits down to cycle (breathing on the beat) when
-## its madra runs low, so headless runs exercise every system.
+## Chases the nearest living fighter and meditates through light combos, heavies, blocks,
+## dodges and all four techniques, and sits down to meditate (breathing on the beat) when
+## its spirit runs low, so headless runs exercise every system.
 func _bot_input() -> PlayerInput:
 	var input := PlayerInput.new()
 	var portals: Array = Zones.get_zone(_zone_id).get("portals", [])
@@ -486,10 +486,10 @@ func _bot_input() -> PlayerInput:
 	_bot_progress()
 	var wants_advance := _progress.advance_error(true).is_empty()
 
-	# Claim remnants when nothing is close enough to fight.
-	var remnant := _effects.nearest_remnant(_body.global_position, 25.0, _entity_id)
-	if not remnant.is_empty() and distance > 4.0:
-		var offset: Vector3 = remnant.position - _body.global_position
+	# Claim echoes when nothing is close enough to fight.
+	var echo := _effects.nearest_echo(_body.global_position, 25.0, _entity_id)
+	if not echo.is_empty() and distance > 4.0:
+		var offset: Vector3 = echo.position - _body.global_position
 		if Vector2(offset.x, offset.z).length() > 1.2:
 			input.set_yaw(atan2(-offset.x, -offset.z))
 			input.set_move(Vector2(0.0, -1.0))
@@ -497,15 +497,15 @@ func _bot_input() -> PlayerInput:
 			input.buttons |= PlayerInput.INTERACT
 		return input
 
-	if _body.madra < _body.madra_capacity * 0.2 and not _body.is_exhausted():
-		_bot_cycling = true
-	elif _body.madra > _body.madra_capacity * 0.8:
-		_bot_cycling = false
-	if (_bot_cycling or wants_advance) and distance > 3.0:
-		if _body.action != PlayerBody.Action.CYCLE:
-			input.buttons |= PlayerInput.CYCLE
-		elif _body.action_tick % PlayerBody.CYCLE_BEAT_TICKS == 0:
-			input.buttons |= PlayerInput.CYCLE  # Breathe exactly on the beat.
+	if _body.spirit < _body.spirit_capacity * 0.2 and not _body.is_exhausted():
+		_bot_meditating = true
+	elif _body.spirit > _body.spirit_capacity * 0.8:
+		_bot_meditating = false
+	if (_bot_meditating or wants_advance) and distance > 3.0:
+		if _body.action != PlayerBody.Action.MEDITATE:
+			input.buttons |= PlayerInput.MEDITATE
+		elif _body.action_tick % PlayerBody.BREATH_BEAT_TICKS == 0:
+			input.buttons |= PlayerInput.MEDITATE  # Breathe exactly on the beat.
 		return input
 
 	if target == null:
@@ -546,11 +546,11 @@ func _bot_progress() -> void:
 	if _bot_request_cooldown > 0:
 		return
 	_bot_request_cooldown = Protocol.TICK_RATE
-	for binding in Advancement.BINDINGS.size():
-		if _progress.craft_error(binding).is_empty():
-			_request_craft(binding)
+	for sigil in Advancement.SIGILS.size():
+		if _progress.craft_error(sigil).is_empty():
+			_request_craft(sigil)
 			return
-	if _progress.advance_error(_body.action == PlayerBody.Action.CYCLE).is_empty():
+	if _progress.advance_error(_body.action == PlayerBody.Action.MEDITATE).is_empty():
 		_request_advance()
 
 

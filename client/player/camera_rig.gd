@@ -70,8 +70,8 @@ func sample_input() -> PlayerInput:
 		input.buttons |= PlayerInput.BLOCK
 	if Input.is_action_pressed("interact"):
 		input.buttons |= PlayerInput.INTERACT
-	if Input.is_action_just_pressed("cycle"):
-		input.buttons |= PlayerInput.CYCLE
+	if Input.is_action_just_pressed("meditate"):
+		input.buttons |= PlayerInput.MEDITATE
 	for slot in PlayerInput.TECHNIQUE_COUNT:
 		if Input.is_action_just_pressed("technique_%d" % (slot + 1)):
 			input.buttons |= PlayerInput.technique_button(slot)

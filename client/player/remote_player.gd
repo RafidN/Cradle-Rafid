@@ -8,11 +8,11 @@ const BAR_SIZE := Vector2(0.9, 0.09)
 const BAR_HEIGHT := 2.15
 const NAME_COLOR := Color(1, 1, 1)
 const LOCKED_COLOR := Color(1.0, 0.82, 0.3)
-const ARTIST_COLOR := Color(0.85, 0.45, 0.38)
+const PRACTITIONER_COLOR := Color(0.85, 0.45, 0.38)
 const DUMMY_COLOR := Color(0.75, 0.68, 0.55)
 
 var display_name := "..."
-var kind := Protocol.EntityKind.ARTIST
+var kind := Protocol.EntityKind.PRACTITIONER
 var max_health := PlayerBody.MAX_HEALTH
 ## Tick of the newest snapshot that included this fighter.
 var last_seen_tick := 0
@@ -46,7 +46,7 @@ func configure(info: Dictionary) -> void:
 	kind = info.kind
 	max_health = info.get("max_health", PlayerBody.MAX_HEALTH)
 	_shown_health = -1
-	var tint := ARTIST_COLOR
+	var tint := PRACTITIONER_COLOR
 	var size := 1.0
 	_label_text = "%s  ·  %s" % [display_name, Advancement.rank_name(info.rank)]
 	if kind == Protocol.EntityKind.BEAST:

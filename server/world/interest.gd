@@ -9,7 +9,7 @@ const ENTER_RADIUS := 55.0
 const LEAVE_RADIUS := 65.0
 const NEAR_RADIUS := 25.0
 const FAR_INTERVAL := 3
-## Stationary world effects (traps, remnants) are resent this often; projectiles every tick.
+## Stationary world effects (traps, echoes) are resent this often; projectiles every tick.
 const STATIC_EFFECT_INTERVAL := 6
 
 ## Entity ids currently in view, for hysteresis.

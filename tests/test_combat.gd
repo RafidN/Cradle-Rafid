@@ -1,5 +1,5 @@
 extends SceneTree
-## Headless tests for combat, madra, cycling and techniques, and simulation determinism.
+## Headless tests for combat, spirit, meditating and techniques, and simulation determinism.
 ## Run: godot --headless --path . --script res://tests/test_combat.gd
 
 const PLAYER_SCENE := preload("res://shared/sim/player_body.tscn")
@@ -26,6 +26,7 @@ func _run() -> void:
 	await physics_frame
 
 	_test_all_scripts_compile()
+	_test_no_borrowed_terms()
 	_test_hitbox_geometry()
 	_test_clean_hit()
 	_test_block_and_backstab()
@@ -36,19 +37,19 @@ func _run() -> void:
 	_test_death()
 	_test_replay_matches()
 	_test_input_roundtrip()
-	_test_technique_costs_madra()
+	_test_technique_costs_spirit()
 	_test_overdraw_exhausts()
 	_test_exhaustion_limits()
 	_test_enforcer()
-	_test_cycling_rhythm()
-	_test_cycling_regen()
+	_test_meditation_rhythm()
+	_test_meditation_regen()
 	_test_technique_hits()
 	_test_faces_camera()
 	_test_move_cancels_recovery()
 	_test_progression_rules()
 	_test_rank_stats()
 	_test_stat_multipliers()
-	_test_remnant_claiming()
+	_test_echo_claiming()
 	_test_beast_brain()
 	_test_interest()
 	_test_remote_entry_encoding()
@@ -67,6 +68,36 @@ func _test_all_scripts_compile() -> void:
 		if script == null or not script.can_instantiate():
 			broken.append(path)
 	_check(broken.is_empty(), "every script compiles%s" % ("" if broken.is_empty() else " (broken: %s)" % [broken]))
+
+
+## The game uses only its own vocabulary (docs/ROADMAP.md, Lexicon). Fails if a term or
+## name borrowed from the books it started from comes back into code, data or docs.
+## Only distinctive terms are listed, so ordinary words like "foundation" or "iron" are fine.
+func _test_no_borrowed_terms() -> void:
+	var borrowed := RegEx.create_from_string("(?i)\\b(madra|remnants?|cycling|sacred (art|artist|artists|beast|beasts)|"
+		+ "(?<!key)(?<!re)bindings?|lowgold|highgold|true gold|underlord|overlord|archlord|"
+		+ "path of (black|the)|will wight|cradle (series|books?)|blackflame|lindon|yerin|eithan|orthos|sophara)\\b"
+		+ "|\\b(Striker|Ruler|Forger)s?\\b")
+	var found := []
+	for path in _files_under("res://", ["gd", "tscn", "tres", "godot", "md", "ts", "sh"]):
+		if path == "res://tests/test_combat.gd":
+			continue  # This list.
+		var text := FileAccess.get_file_as_string(path)
+		for match in borrowed.search_all(text):
+			found.append("%s: %s" % [path.trim_prefix("res://"), match.get_string()])
+	_check(found.is_empty(), "no borrowed terms in code, data or docs%s" % ("" if found.is_empty() else " %s" % [found]))
+
+
+func _files_under(dir_path: String, extensions: Array) -> PackedStringArray:
+	var found := PackedStringArray()
+	var dir := DirAccess.open(dir_path)
+	for sub in dir.get_directories():
+		if not sub.begins_with(".") and sub not in ["node_modules", "data", "dist"]:
+			found.append_array(_files_under(dir_path.path_join(sub), extensions))
+	for file in dir.get_files():
+		if file.get_extension() in extensions:
+			found.append(dir_path.path_join(file))
+	return found
 
 
 func _scripts_under(dir_path: String) -> PackedStringArray:
@@ -177,7 +208,7 @@ func _test_replay_matches() -> void:
 	for i in 90:
 		var presses := [0, PlayerInput.LIGHT, PlayerInput.DODGE, PlayerInput.JUMP, PlayerInput.HEAVY,
 			PlayerInput.technique_button(0), PlayerInput.technique_button(1), PlayerInput.technique_button(2),
-			PlayerInput.technique_button(3), PlayerInput.CYCLE]
+			PlayerInput.technique_button(3), PlayerInput.MEDITATE]
 		var input := _input(presses[i * 7 % presses.size()] if i % 6 == 0 else 0)
 		input.set_move(Vector2(sin(i * 0.2), -cos(i * 0.13)))
 		input.set_yaw(i * 0.05)
@@ -223,12 +254,12 @@ func _test_input_roundtrip() -> void:
 	_check(is_equal_approx(decoded.view_tick, 987.5), "view tick survives the wire")
 
 
-func _test_technique_costs_madra() -> void:
+func _test_technique_costs_spirit() -> void:
 	var body := _body(Vector3.ZERO, 0.0)
 	var lance := Techniques.get_technique(Techniques.EMBER_LANCE)
 	_step(body, _input(PlayerInput.technique_button(Techniques.EMBER_LANCE)))
 	_check(body.action == PlayerBody.Action.TECHNIQUE, "technique key starts a cast")
-	_check(body.madra == PlayerBody.MAX_MADRA - lance.cost * PlayerBody.MADRA_SCALE + PlayerBody.PASSIVE_REGEN,
+	_check(body.spirit == PlayerBody.MAX_SPIRIT - lance.cost * PlayerBody.SPIRIT_SCALE + PlayerBody.PASSIVE_REGEN,
 		"casting spends the technique's cost up front (then that tick's regen)")
 	var released := -1
 	for i in lance.total_ticks():
@@ -242,27 +273,27 @@ func _test_technique_costs_madra() -> void:
 
 func _test_overdraw_exhausts() -> void:
 	var body := _body(Vector3.ZERO, 0.0)
-	body.madra = 5 * PlayerBody.MADRA_SCALE
+	body.spirit = 5 * PlayerBody.SPIRIT_SCALE
 	_step(body, _input(PlayerInput.technique_button(Techniques.SEARING_RING)))
 	_check(body.action == PlayerBody.Action.TECHNIQUE, "overdrawing still casts")
-	_check(body.madra == 0 and body.is_exhausted(), "overdrawing empties madra and exhausts")
+	_check(body.spirit == 0 and body.is_exhausted(), "overdrawing empties spirit and exhausts")
 	body.free()
 
 
 func _test_exhaustion_limits() -> void:
 	var body := _body(Vector3.ZERO, 0.0)
-	body.madra = 0
+	body.spirit = 0
 	body.exhaust_ticks = PlayerBody.EXHAUST_TICKS
 	_step(body, _input(PlayerInput.DODGE))
-	_check(body.action != PlayerBody.Action.DODGE, "exhausted artists can't dodge")
+	_check(body.action != PlayerBody.Action.DODGE, "exhausted practitioners can't dodge")
 	_step(body, _input(PlayerInput.BLOCK))
-	_check(body.action != PlayerBody.Action.BLOCK, "exhausted artists can't block")
+	_check(body.action != PlayerBody.Action.BLOCK, "exhausted practitioners can't block")
 	_step(body, _input(PlayerInput.technique_button(Techniques.EMBER_LANCE)))
-	_check(body.action != PlayerBody.Action.TECHNIQUE, "exhausted artists can't cast")
-	_check(body.madra == 0, "no regen while exhausted")
+	_check(body.action != PlayerBody.Action.TECHNIQUE, "exhausted practitioners can't cast")
+	_check(body.spirit == 0, "no regen while exhausted")
 	for i in PlayerBody.EXHAUST_TICKS:
 		_step(body, _input())
-	_check(not body.is_exhausted() and body.madra > 0, "exhaustion wears off and regen resumes")
+	_check(not body.is_exhausted() and body.spirit > 0, "exhaustion wears off and regen resumes")
 	body.free()
 
 
@@ -273,64 +304,69 @@ func _test_enforcer() -> void:
 	for i in flame_body.total_ticks():
 		_step(body, _input())
 	_check(body.enforcer_active, "Flame Body turns on")
-	var before := body.madra
+	var before := body.spirit
 	for i in 30:
 		_step(body, _input())
-	_check(body.madra == before - 30 * PlayerBody.ENFORCER_DRAIN, "an active Enforcer drains madra every tick")
+	_check(body.spirit == before - 30 * PlayerBody.ENFORCER_DRAIN, "an active Enforcer drains spirit every tick")
 	var spec := Combat.melee_spec(body, Attacks.get_attack(Attacks.LIGHT_1))
 	_check(spec.damage == roundi(Attacks.get_attack(Attacks.LIGHT_1).damage * Combat.ENFORCER_DAMAGE_MULT), "Flame Body strengthens melee")
-	before = body.madra
+	before = body.spirit
 	_step(body, _input(PlayerInput.technique_button(Techniques.FLAME_BODY)))
 	for i in flame_body.total_ticks():
 		_step(body, _input())
 	_check(not body.enforcer_active, "casting Flame Body again turns it off")
-	_check(body.madra >= before - flame_body.total_ticks() * PlayerBody.ENFORCER_DRAIN, "turning it off costs nothing")
-	body.madra = PlayerBody.ENFORCER_DRAIN
+	_check(body.spirit >= before - flame_body.total_ticks() * PlayerBody.ENFORCER_DRAIN, "turning it off costs nothing")
+	body.spirit = PlayerBody.ENFORCER_DRAIN
 	body.enforcer_active = true
 	_step(body, _input())
 	_check(not body.enforcer_active and body.is_exhausted(), "draining dry ends the Enforcer and exhausts")
+	body.exhaust_ticks = 0
+	body.spirit = body.spirit_capacity
+	body.enforcer_active = true
+	_step(body, _input(PlayerInput.MEDITATE))
+	_check(body.action == PlayerBody.Action.MEDITATE and not body.enforcer_active, "meditating releases the Enforcer")
 	body.free()
 
 
-func _test_cycling_rhythm() -> void:
+func _test_meditation_rhythm() -> void:
 	var body := _body(Vector3.ZERO, 0.0)
-	var beat := PlayerBody.CYCLE_BEAT_TICKS
-	_step(body, _input(PlayerInput.CYCLE))
-	_check(body.action == PlayerBody.Action.CYCLE, "cycle key starts cycling")
+	var beat := PlayerBody.BREATH_BEAT_TICKS
+	_step(body, _input(PlayerInput.MEDITATE))
+	_check(body.action == PlayerBody.Action.MEDITATE, "meditate key starts meditating")
 	for n in 3:  # Breathe right on three beats.
 		while body.action_tick < (n + 1) * beat - 1:
 			_step(body, _input())
-		_step(body, _input(PlayerInput.CYCLE))
+		_step(body, _input(PlayerInput.MEDITATE))
 	_check(body.flow == 3, "breathing on the beat builds flow (got %d)" % body.flow)
 
-	while body.action_tick < 4 * beat + PlayerBody.CYCLE_WINDOW + 2:
+	while body.action_tick < 4 * beat + PlayerBody.BREATH_WINDOW + 2:
 		_step(body, _input())
 	_check(body.flow == 2, "skipping a beat loses one flow (got %d)" % body.flow)
 
 	while body.action_tick < 4 * beat + beat / 2:
 		_step(body, _input())
-	_step(body, _input(PlayerInput.CYCLE))
+	_step(body, _input(PlayerInput.MEDITATE))
 	_check(body.flow == 0, "an off-beat breath breaks flow")
 
 	var held := _input()
 	held.set_move(Vector2(0, -1))
 	_step(body, held)
-	_check(body.action == PlayerBody.Action.NONE, "moving stops cycling")
+	_check(body.action == PlayerBody.Action.NONE, "moving stops meditating")
 	body.free()
 
 
-func _test_cycling_regen() -> void:
+func _test_meditation_regen() -> void:
 	var resting := _body(Vector3.ZERO, 0.0)
-	var cycling := _body(Vector3(5, 0, 0), 0.0)
-	resting.madra = 0
-	cycling.madra = 0
-	_step(cycling, _input(PlayerInput.CYCLE))
+	var meditating := _body(Vector3(5, 0, 0), 0.0)
+	resting.spirit = 0
+	meditating.spirit = 0
+	_step(meditating, _input(PlayerInput.MEDITATE))
 	_step(resting, _input())
 	for i in 90:
 		_step(resting, _input())
-		_step(cycling, _input())
-	_check(cycling.madra > resting.madra * 3, "cycling regenerates far faster than resting")
-	_free([resting, cycling])
+		_step(meditating, _input())
+	_check(meditating.spirit > resting.spirit * 3, "meditating regenerates far faster than resting")
+	_free([resting, meditating])
 
 
 func _test_technique_hits() -> void:
@@ -338,7 +374,7 @@ func _test_technique_hits() -> void:
 	_hold_block(pair[1], PlayerBody.PARRY_WINDOW + 3)
 	var ring := HitSpec.from_technique(Techniques.get_technique(Techniques.SEARING_RING))
 	var outcome := Combat.resolve(pair[0], pair[1], ring, pair[0].global_position)
-	_check(outcome[0] == Combat.Result.HIT, "Ruler bursts can't be blocked")
+	_check(outcome[0] == Combat.Result.HIT, "Controller bursts can't be blocked")
 
 	var fresh := _pair()
 	_hold_block(fresh[1], 2)
@@ -350,7 +386,7 @@ func _test_technique_hits() -> void:
 	tired[1].exhaust_ticks = PlayerBody.EXHAUST_TICKS
 	var attack := Attacks.get_attack(Attacks.LIGHT_1)
 	outcome = _melee(tired[0], tired[1], attack)
-	_check(outcome[1] == roundi(attack.damage * Combat.EXHAUSTED_DAMAGE_TAKEN_MULT), "exhausted artists take extra damage")
+	_check(outcome[1] == roundi(attack.damage * Combat.EXHAUSTED_DAMAGE_TAKEN_MULT), "exhausted practitioners take extra damage")
 	_free(pair + fresh + tired)
 
 
@@ -400,31 +436,31 @@ func _test_progression_rules() -> void:
 	_check(not progress.advance_error(true).is_empty(), "can't advance without essence")
 	progress.add_essence(Advancement.Aspect.FIRE, 40)
 	progress.add_essence(Advancement.Aspect.WIND, 25)
-	_check(not progress.advance_error(false).is_empty(), "can't break through unless cycling")
-	_check(progress.advance_error(true).is_empty(), "enough essence of any aspect reaches Copper")
+	_check(not progress.advance_error(false).is_empty(), "can't break through unless meditating")
+	_check(progress.advance_error(true).is_empty(), "enough essence of any aspect reaches Bronze")
 	progress.advance()
-	_check(progress.rank == Advancement.Rank.COPPER, "advancing raises the rank")
+	_check(progress.rank == Advancement.Rank.BRONZE, "advancing raises the rank")
 	_check(progress.total_essence() == 5 and progress.essence[Advancement.Aspect.FIRE] == 0,
 		"advancing spends essence from the largest pools first (left %s)" % progress.essence)
 
 	progress.add_essence(Advancement.Aspect.EARTH, 200)
-	_check(progress.advance_error(true).contains("Iron Body"), "Iron needs an Iron Body Binding")
-	_check(not progress.craft_error(Advancement.Binding.IRON_BODY).is_empty(), "bindings need every aspect in their cost")
+	_check(progress.advance_error(true).contains("Tempered Body"), "Silver needs a Tempered Body Sigil")
+	_check(not progress.craft_error(Advancement.Sigil.TEMPERED_BODY).is_empty(), "sigils need every aspect in their cost")
 	progress.add_essence(Advancement.Aspect.FIRE, 50)
-	progress.craft(Advancement.Binding.IRON_BODY)
-	_check(progress.bindings[Advancement.Binding.IRON_BODY] == 1 and progress.essence[Advancement.Aspect.FIRE] == 30,
-		"crafting spends its cost and adds the binding")
-	_check(not progress.craft_error(Advancement.Binding.IRON_BODY).is_empty(), "bindings have a cap")
+	progress.craft(Advancement.Sigil.TEMPERED_BODY)
+	_check(progress.sigils[Advancement.Sigil.TEMPERED_BODY] == 1 and progress.essence[Advancement.Aspect.FIRE] == 30,
+		"crafting spends its cost and adds the sigil")
+	_check(not progress.craft_error(Advancement.Sigil.TEMPERED_BODY).is_empty(), "sigils have a cap")
 	progress.advance()
-	_check(progress.rank == Advancement.Rank.IRON and progress.bindings[Advancement.Binding.IRON_BODY] == 0,
-		"advancing to Iron consumes the binding")
-	_check(not progress.advance_error(true).is_empty(), "nothing above Iron yet")
+	_check(progress.rank == Advancement.Rank.SILVER and progress.sigils[Advancement.Sigil.TEMPERED_BODY] == 0,
+		"advancing to Silver consumes the sigil")
+	_check(not progress.advance_error(true).is_empty(), "nothing above Silver yet")
 
 	var buf := StreamPeerBuffer.new()
 	progress.encode(buf)
 	buf.seek(0)
 	var decoded := ProgressState.decode(buf)
-	_check(decoded.rank == progress.rank and decoded.essence == progress.essence and decoded.bindings == progress.bindings,
+	_check(decoded.rank == progress.rank and decoded.essence == progress.essence and decoded.sigils == progress.sigils,
 		"progress survives the wire")
 
 
@@ -434,20 +470,20 @@ func _test_rank_stats() -> void:
 	progress.apply_to(body)
 	body.respawn(Vector3.ZERO, 0.0)
 	_step(body, _input(PlayerInput.technique_button(Techniques.SEARING_RING)))
-	_check(body.action != PlayerBody.Action.TECHNIQUE, "Foundation can't cast a Copper technique")
+	_check(body.action != PlayerBody.Action.TECHNIQUE, "Iron can't cast a Bronze technique")
 	_step(body, _input(PlayerInput.technique_button(Techniques.EMBER_LANCE)))
-	_check(body.action == PlayerBody.Action.TECHNIQUE, "Foundation can cast its own techniques")
+	_check(body.action == PlayerBody.Action.TECHNIQUE, "Iron can cast its own techniques")
 
-	progress.rank = Advancement.Rank.IRON
-	progress.bindings[Advancement.Binding.KINDLED_CORE] = 2
+	progress.rank = Advancement.Rank.SILVER
+	progress.sigils[Advancement.Sigil.KINDLED_CORE] = 2
 	progress.apply_to(body)
 	body.respawn(Vector3.ZERO, 0.0)
-	_check(body.max_health == 160 and body.health == 160, "Iron raises max health")
-	_check(body.madra_capacity == (160 + 2 * Advancement.KINDLED_CORE_MADRA) * PlayerBody.MADRA_SCALE,
-		"Kindled Cores add madra capacity")
+	_check(body.max_health == 160 and body.health == 160, "Silver raises max health")
+	_check(body.spirit_capacity == (160 + 2 * Advancement.KINDLED_CORE_SPIRIT) * PlayerBody.SPIRIT_SCALE,
+		"Kindled Cores add spirit capacity")
 	for i in 30:
 		_step(body, _input())
-	_check(body.madra <= body.madra_capacity, "madra never exceeds capacity")
+	_check(body.spirit <= body.spirit_capacity, "spirit never exceeds capacity")
 	body.free()
 
 
@@ -460,21 +496,21 @@ func _test_stat_multipliers() -> void:
 	_check(outcome[1] == attack.damage * 2, "attacker damage multiplier applies")
 	_check(is_zero_approx(pair[1].velocity.x) and is_zero_approx(pair[1].velocity.z), "knockback resistance applies")
 	pair[0].team = 1
-	_check(Combat.can_harm(pair[0], pair[1]), "beasts can hurt artists")
+	_check(Combat.can_harm(pair[0], pair[1]), "beasts can hurt practitioners")
 	pair[1].team = 1
 	_check(not Combat.can_harm(pair[0], pair[1]), "beasts can't hurt each other")
 	pair[0].team = 0
 	pair[1].team = 0
-	_check(Combat.can_harm(pair[0], pair[1]) and Combat.can_harm(pair[1], pair[0]), "artists can fight each other")
+	_check(Combat.can_harm(pair[0], pair[1]) and Combat.can_harm(pair[1], pair[0]), "practitioners can fight each other")
 	_free(pair)
 
 
-func _test_remnant_claiming() -> void:
+func _test_echo_claiming() -> void:
 	var killer := _body(Vector3.ZERO, 0.0)
 	var rival := _body(Vector3(0.5, 0, 0), 0.0)
 	killer.entity_id = 1
 	rival.entity_id = 2
-	var field := RemnantField.new()
+	var field := EchoField.new()
 	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.EARTH, 30, 1, "Stoneback Boar")
 
 	var done := []
@@ -482,41 +518,41 @@ func _test_remnant_claiming() -> void:
 		done += field.update([{"body": rival, "interacting": true}])
 	_check(done.is_empty() and field.progress_of(2) == 0.0, "only the killer may claim at first")
 
-	for i in RemnantField.CLAIM_TICKS - 10:
+	for i in EchoField.CLAIM_TICKS - 10:
 		done += field.update([{"body": killer, "interacting": true}])
 	field.update([{"body": killer, "interacting": false}])
 	_check(field.progress_of(1) == 0.0, "letting go of interact resets the claim")
 
-	for i in RemnantField.CLAIM_TICKS:
+	for i in EchoField.CLAIM_TICKS:
 		done += field.update([{"body": killer, "interacting": true}])
 	_check(done.size() == 1 and done[0][0] == 1 and done[0][1].essence == 30, "holding interact long enough claims it")
-	_check(field.count() == 0, "a claimed remnant is gone")
+	_check(field.count() == 0, "a claimed echo is gone")
 
 	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.FIRE, 6, 1, "Somebody")
-	for i in RemnantField.EXCLUSIVE_TICKS:
+	for i in EchoField.EXCLUSIVE_TICKS:
 		field.update([])
 	done = []
-	for i in RemnantField.CLAIM_TICKS:
+	for i in EchoField.CLAIM_TICKS:
 		done += field.update([{"body": rival, "interacting": true}])
 	_check(done.size() == 1 and done[0][0] == 2, "anyone may claim once exclusivity ends")
 
 	field.spawn(Vector3(1, 0, 0), Advancement.Aspect.FIRE, 6, 0, "Nobody")
-	for i in RemnantField.LIFETIME_TICKS:
+	for i in EchoField.LIFETIME_TICKS:
 		field.update([])
-	_check(field.count() == 0, "unclaimed remnants fade")
+	_check(field.count() == 0, "unclaimed echoes fade")
 	_free([killer, rival])
 
 
 func _test_beast_brain() -> void:
 	var data := Beasts.get_beast(Beasts.EMBER_HOUND)
 	var beast := _body(Vector3.ZERO, 0.0)
-	beast.apply_stats(data.max_health, PlayerBody.MAX_MADRA, 4, data.damage_mult, data.knockback_taken_mult, data.speed_mult)
+	beast.apply_stats(data.max_health, PlayerBody.MAX_SPIRIT, 4, data.damage_mult, data.knockback_taken_mult, data.speed_mult)
 	beast.respawn(Vector3.ZERO, 0.0)
 	var brain := BeastBrain.new(data, beast, Vector3.ZERO, 7)
 	var far := _body(Vector3(0, 0, -(data.aggro_range + 5.0)), 0.0)
 	far.entity_id = 50
 	brain.think([far])
-	_check(brain.state == BeastBrain.State.IDLE, "beasts ignore artists beyond aggro range")
+	_check(brain.state == BeastBrain.State.IDLE, "beasts ignore practitioners beyond aggro range")
 
 	var near := _body(Vector3(0, 0, -1.5), PI)
 	near.entity_id = 51
@@ -526,7 +562,7 @@ func _test_beast_brain() -> void:
 		_step(beast, input)
 		attacked = attacked or input.is_pressed(PlayerInput.LIGHT) or input.is_pressed(PlayerInput.HEAVY) \
 			or input.is_pressed(PlayerInput.DODGE)
-	_check(brain.state == BeastBrain.State.HUNT and brain.target_id == 51, "beasts hunt artists that come close")
+	_check(brain.state == BeastBrain.State.HUNT and brain.target_id == 51, "beasts hunt practitioners that come close")
 	_check(attacked, "hunting beasts attack in melee range")
 
 	brain.on_hit(far)
@@ -575,7 +611,7 @@ func _test_remote_entry_encoding() -> void:
 	var snapshot_body := _body(Vector3.ZERO, 0.0)
 	var entry := Protocol.encode_remote_entry(body)
 	_check(entry.size() == Protocol.REMOTE_ENTRY_SIZE, "remote entries are %d bytes" % Protocol.REMOTE_ENTRY_SIZE)
-	var effect := {"id": 1 << 24, "kind": Protocol.Effect.REMNANT, "owner": 4321, "position": Vector3(1.5, 0.9, -3.25),
+	var effect := {"id": 1 << 24, "kind": Protocol.Effect.ECHO, "owner": 4321, "position": Vector3(1.5, 0.9, -3.25),
 		"velocity": Vector3(0, 0, -24), "armed": true, "data": 2}
 	var effect_entry := Protocol.encode_effect_entry(effect)
 	_check(effect_entry.size() == Protocol.EFFECT_ENTRY_SIZE, "effect entries are %d bytes" % Protocol.EFFECT_ENTRY_SIZE)

@@ -12,7 +12,7 @@ const GUARD_BREAK_TICKS := 24
 const PARRY_STAGGER_TICKS := 30
 ## An active Enforcer technique strengthens melee attacks.
 const ENFORCER_DAMAGE_MULT := 1.3
-## Exhausted artists take extra damage from everything.
+## Exhausted practitioners take extra damage from everything.
 const EXHAUSTED_DAMAGE_TAKEN_MULT := 1.25
 
 

@@ -6,7 +6,7 @@
 script = ExtResource("1_beast")
 display_name = "Ember Hound"
 aspect = 0
-rank_label = "Copper"
+rank_label = "Bronze"
 max_health = 55
 damage_mult = 0.8
 speed_mult = 1.1

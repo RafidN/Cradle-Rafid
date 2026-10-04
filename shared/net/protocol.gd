@@ -25,11 +25,11 @@ const REMOTE_ENTRY_SIZE := 15
 const EFFECT_ENTRY_SIZE := 21
 
 ## Kinds of world effects (server-owned objects that aren't fighters) sent in snapshots.
-enum Effect { PROJECTILE, TRAP, REMNANT }
+enum Effect { PROJECTILE, TRAP, ECHO }
 ## What a fighter is, for drawing it.
-enum EntityKind { ARTIST, DUMMY, BEAST }
+enum EntityKind { PRACTITIONER, DUMMY, BEAST }
 ## Client requests.
-enum Request { CRAFT_BINDING, ADVANCE }
+enum Request { CRAFT_SIGIL, ADVANCE }
 
 
 static func is_reliable(msg: int) -> bool:
@@ -139,7 +139,7 @@ static func decode_reject(buf: StreamPeerBuffer) -> String:
 ## last input the server applied for it. Then the other fighters it can see, as entries
 ## from encode_remote_entry(), then the world effects it can see, as entries from
 ## encode_effect_entry(). Entries are encoded once per tick and shared by every client.
-## claim is the client's remnant-claiming progress, 0-1.
+## claim is the client's echo-claiming progress, 0-1.
 static func encode_snapshot(tick: int, ack_input_tick: int, own: PlayerBody, remote_entries: Array,
 		effect_entries: Array, claim: float) -> PackedByteArray:
 	var buf := _writer(Msg.SNAPSHOT)
@@ -240,7 +240,7 @@ static func decode_hit(buf: StreamPeerBuffer) -> Dictionary:
 	}
 
 
-## A technique effect went off at a point: a Ruler burst, or a trap detonating.
+## A technique effect went off at a point: a Controller burst, or a trap detonating.
 static func encode_burst(caster_id: int, technique_id: int, at: Vector3) -> PackedByteArray:
 	var buf := _writer(Msg.BURST)
 	buf.put_u32(caster_id)
@@ -253,7 +253,7 @@ static func decode_burst(buf: StreamPeerBuffer) -> Dictionary:
 	return {"caster": buf.get_u32(), "technique": buf.get_u8(), "position": _get_vector3(buf)}
 
 
-## Who a fighter is: name, what kind of fighter, species (beasts), rank (artists) and
+## Who a fighter is: name, what kind of fighter, species (beasts), rank (practitioners) and
 ## max health. Sent when the client first needs it and again whenever it changes.
 static func encode_entity_info(entity_id: int, display_name: String, kind: EntityKind, species: int, rank: int,
 		max_health: int) -> PackedByteArray:
@@ -306,7 +306,7 @@ static func encode_progress(progress: ProgressState) -> PackedByteArray:
 	return buf.data_array
 
 
-## A message for the player's screen ("Claimed a remnant", "Advanced to Copper").
+## A message for the player's screen ("Claimed an echo", "Advanced to Bronze").
 static func encode_notice(text: String) -> PackedByteArray:
 	var buf := _writer(Msg.NOTICE)
 	_put_string(buf, text)
@@ -353,9 +353,9 @@ static func _put_body_state(buf: StreamPeerBuffer, state: Dictionary) -> void:
 	buf.put_u16(state.buffered)
 	buf.put_u8(state.buffer_ticks)
 	buf.put_u8(state.dodge_cooldown)
-	buf.put_u16(state.madra)
+	buf.put_u16(state.spirit)
 	buf.put_u8(state.flow)
-	buf.put_u16(state.cycle_beat)
+	buf.put_u16(state.breath_beat)
 	buf.put_u8(state.exhaust_ticks)
 	buf.put_u8(1 if state.enforcer_active else 0)
 
@@ -374,9 +374,9 @@ static func _get_body_state(buf: StreamPeerBuffer) -> Dictionary:
 		"buffered": buf.get_u16(),
 		"buffer_ticks": buf.get_u8(),
 		"dodge_cooldown": buf.get_u8(),
-		"madra": buf.get_u16(),
+		"spirit": buf.get_u16(),
 		"flow": buf.get_u8(),
-		"cycle_beat": buf.get_u16(),
+		"breath_beat": buf.get_u16(),
 		"exhaust_ticks": buf.get_u8(),
 		"enforcer_active": buf.get_u8() != 0,
 	}

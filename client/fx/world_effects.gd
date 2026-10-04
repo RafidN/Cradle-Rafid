@@ -32,7 +32,7 @@ func sync(snapshot_tick: int, effects: Array, local_entity_id: int) -> void:
 				Protocol.Effect.TRAP:
 					node = _make_trap()
 				_:
-					node = _make_remnant(Advancement.ASPECT_COLORS[clampi(effect.data, 0, 2)])
+					node = _make_echo(Advancement.ASPECT_COLORS[clampi(effect.data, 0, 2)])
 			add_child(node)
 			entry = {"node": node, "kind": effect.kind}
 			_server_effects[effect.id] = entry
@@ -60,20 +60,20 @@ func render(render_tick: float) -> void:
 		if entry.kind == Protocol.Effect.TRAP:
 			var pulse := 0.6 + 0.4 * sin(Time.get_ticks_msec() * 0.008) if entry.armed else 0.25
 			entry.node.get_child(0).transparency = 1.0 - pulse
-		elif entry.kind == Protocol.Effect.REMNANT:
+		elif entry.kind == Protocol.Effect.ECHO:
 			var t: float = Time.get_ticks_msec() * 0.001 + id * 0.37
 			entry.node.position.y += sin(t * 2.0) * 0.15
 			entry.node.rotation.y = t * 0.8
 
 
-## The nearest remnant within max_distance of a point that entity_id may claim, as
+## The nearest echo within max_distance of a point that entity_id may claim, as
 ## {"id", "position"}, or {}.
-func nearest_remnant(point: Vector3, max_distance: float, entity_id: int) -> Dictionary:
+func nearest_echo(point: Vector3, max_distance: float, entity_id: int) -> Dictionary:
 	var best := {}
 	var best_distance := max_distance
 	for id in _server_effects:
 		var entry: Dictionary = _server_effects[id]
-		if entry.kind != Protocol.Effect.REMNANT or (entry.owner != 0 and entry.owner != entity_id):
+		if entry.kind != Protocol.Effect.ECHO or (entry.owner != 0 and entry.owner != entity_id):
 			continue
 		var offset: Vector3 = entry.position - point
 		var distance := Vector2(offset.x, offset.z).length()
@@ -159,8 +159,8 @@ func _make_trap() -> Node3D:
 	return root
 
 
-## A remnant: a slowly turning, glowing wisp in its aspect's color.
-func _make_remnant(tint: Color) -> Node3D:
+## An echo: a slowly turning, glowing wisp in its aspect's color.
+func _make_echo(tint: Color) -> Node3D:
 	var root := Node3D.new()
 	root.physics_interpolation_mode = Node.PHYSICS_INTERPOLATION_MODE_OFF
 	var core := SphereMesh.new()

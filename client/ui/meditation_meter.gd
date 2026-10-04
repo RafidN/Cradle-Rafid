@@ -1,7 +1,7 @@
-class_name CyclingMeter
+class_name MeditationMeter
 extends Control
-## The cycling minigame. A breath circle swells to fill the ring once per beat; pressing
-## cycle while it's full (the ring glows) builds flow. Pips show the current flow.
+## The meditating minigame. A breath circle swells to fill the ring once per beat; pressing
+## meditate while it's full (the ring glows) builds flow. Pips show the current flow.
 
 const RING_RADIUS := 70.0
 const MIN_FRACTION := 0.3
@@ -23,10 +23,10 @@ func show_breath(tick: float, flow: int) -> void:
 
 func _draw() -> void:
 	var center := size * 0.5
-	var beat := PlayerBody.CYCLE_BEAT_TICKS
+	var beat := PlayerBody.BREATH_BEAT_TICKS
 	var fullness := absf(cos(PI * _tick / beat))
 	var from_peak := absf(_tick - roundf(_tick / beat) * beat)
-	var in_window := _tick >= beat - PlayerBody.CYCLE_WINDOW and from_peak <= PlayerBody.CYCLE_WINDOW
+	var in_window := _tick >= beat - PlayerBody.BREATH_WINDOW and from_peak <= PlayerBody.BREATH_WINDOW
 
 	draw_circle(center, RING_RADIUS * lerpf(MIN_FRACTION, 1.0, fullness), BREATH_COLOR)
 	draw_arc(center, RING_RADIUS, 0.0, TAU, 64, WINDOW_COLOR if in_window else RING_COLOR, 6.0 if in_window else 3.0, true)

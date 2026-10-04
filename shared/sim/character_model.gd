@@ -111,9 +111,9 @@ func _target_pose(action: int, action_id: int, tick: float, flags: int, speed: f
 			pose.rig_rotation.x = PI * 0.5
 			pose.weapon_rotation = Vector3(-1.5, 0.0, 0.0)
 			pose.tint = color.darkened(0.6)
-		PlayerBody.Action.CYCLE:
-			# Seated, breathing in time with the cycling beat.
-			var breath := absf(cos(PI * tick / PlayerBody.CYCLE_BEAT_TICKS))
+		PlayerBody.Action.MEDITATE:
+			# Seated, breathing in time with the meditating beat.
+			var breath := absf(cos(PI * tick / PlayerBody.BREATH_BEAT_TICKS))
 			pose.rig_scale = Vector3(1.0 + 0.06 * breath, 0.62 + 0.04 * breath, 1.0 + 0.06 * breath)
 			pose.weapon_rotation = Vector3(-1.4, 0.0, 0.0)
 		PlayerBody.Action.TECHNIQUE:
@@ -169,14 +169,14 @@ func _pose_technique(pose: Pose, technique_id: int, tick: float) -> void:
 		TechniqueData.Kind.ENFORCER:
 			pose.weapon_rotation = REST.lerp(Vector3(1.6, 0.0, 0.0), wind).lerp(REST, settle)
 			pose.rig_scale = Vector3.ONE * (1.0 + 0.12 * wind * (1.0 - settle))
-		TechniqueData.Kind.STRIKER:
+		TechniqueData.Kind.LANCER:
 			pose.weapon_rotation = REST.lerp(Vector3(0.3, 0.0, 0.0), wind).lerp(REST, settle)
 			pose.weapon_offset = Vector3(0.0, 0.0, -THRUST_DISTANCE * released * (1.0 - settle))
 			pose.rig_rotation.x = 0.12 * released * (1.0 - settle)  # Recoil.
-		TechniqueData.Kind.RULER:
+		TechniqueData.Kind.CONTROLLER:
 			pose.rig_scale = Vector3(1.0, 1.0 - 0.3 * wind * (1.0 - released), 1.0) * (1.0 + 0.1 * released * (1.0 - settle))
 			pose.weapon_rotation = REST.lerp(Vector3(1.8, 0.0, 0.0), wind).lerp(Vector3(-1.3, 0.0, 0.0), released).lerp(REST, settle)
-		TechniqueData.Kind.FORGER:
+		TechniqueData.Kind.BUILDER:
 			pose.rig_rotation.x = -0.6 * wind * (1.0 - settle)
 			pose.weapon_rotation = REST.lerp(Vector3(-1.4, 0.0, 0.0), wind).lerp(REST, settle)
 	pose.weapon_glow = released * (1.0 - settle)

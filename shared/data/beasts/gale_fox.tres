@@ -6,7 +6,7 @@
 script = ExtResource("1_beast")
 display_name = "Gale Fox"
 aspect = 2
-rank_label = "Copper"
+rank_label = "Bronze"
 max_health = 45
 damage_mult = 0.7
 speed_mult = 1.25

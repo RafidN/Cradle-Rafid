@@ -1,8 +1,8 @@
 class_name GameServer
 extends Node
 ## Authoritative zone server. Clients only send inputs; the server simulates every
-## fighter (players, training dummies and sacred beasts), resolves hits with lag
-## compensation, runs technique effects and remnants, owns each player's progression,
+## fighter (players, training dummies and spirit beasts), resolves hits with lag
+## compensation, runs technique effects and echoes, owns each player's progression,
 ## and sends each client a snapshot of the world every tick.
 ##
 ## With a backend (online mode), players join with a one-time ticket from the backend,
@@ -66,7 +66,7 @@ class Beast:
 
 ## Print every hit (noisy; for debugging).
 var log_hits := false
-## Multiplies essence from remnants, to test progression quickly.
+## Multiplies essence from echoes, to test progression quickly.
 var essence_mult := 1
 ## Which zone of the world this server runs (see Zones). Set before start().
 var zone_id := Zones.DEFAULT
@@ -89,7 +89,7 @@ var _beasts: Array[Beast] = []
 var _info := {}  # entity_id -> {name, kind, species, rank}, for every fighter
 var _hit_history := HitHistory.new()
 var _effects := TechniqueEffects.new()
-var _remnants := RemnantField.new()
+var _echoes := EchoField.new()
 var _tick := 0
 var _next_entity_id := 1
 var _port := 0
@@ -167,18 +167,18 @@ func _physics_process(delta: float) -> void:
 			session.interacting = input.is_pressed(PlayerInput.INTERACT)
 			_after_simulate(session.body, input.view_tick, bodies)
 	_phase("players")
-	var artists := _artist_bodies()
+	var practitioners := _practitioner_bodies()
 	for beast in _beasts:
-		beast.body.simulate(beast.brain.think(artists), delta)
+		beast.body.simulate(beast.brain.think(practitioners), delta)
 		_after_simulate(beast.body, _tick - 1, bodies)
 	for dummy in _dummies:
 		dummy.body.simulate(dummy.input, delta)
 	_phase("beasts")
 	_effects.update(_tick, bodies, _entities.get_world_3d().direct_space_state)
 	_phase("effects")
-	_update_remnants()
+	_update_echoes()
 	_check_portals()
-	_phase("remnants")
+	_phase("echoes")
 
 	for body: PlayerBody in bodies:
 		if body.global_position.y < KILL_Y or (body.is_dead() and body.action_tick >= _respawn_ticks(body)):
@@ -189,8 +189,8 @@ func _physics_process(delta: float) -> void:
 	_send_snapshots()
 	_phase("snapshots")
 	if _tick % Protocol.TICK_RATE == 0:
-		_status.text = "SERVER  |  %s  |  port %d  |  tick %d  |  %d / %d players  |  %d remnants" % [
-			_zone.name, _port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _remnants.count()]
+		_status.text = "SERVER  |  %s  |  port %d  |  tick %d  |  %d / %d players  |  %d echoes" % [
+			_zone.name, _port, _tick, _sessions.size(), Protocol.MAX_PLAYERS, _echoes.count()]
 	var elapsed := Time.get_ticks_usec() - started
 	_tick_usec_total += elapsed
 	_tick_usec_max = maxi(_tick_usec_max, elapsed)
@@ -244,8 +244,8 @@ func _land_hit(attacker: PlayerBody, target: PlayerBody, spec: HitSpec, origin: 
 		_on_killed(target, attacker)
 
 
-## The fallen leave remnants: beasts of their aspect, sacred artists of their Path's.
-## Whoever landed the killing blow gets first claim, if they're a sacred artist.
+## The fallen leave echoes: beasts of their aspect, spirit practitioners of their Way's.
+## Whoever landed the killing blow gets first claim, if they're a spirit practitioner.
 func _on_killed(target: PlayerBody, killer: PlayerBody) -> void:
 	var killer_id := killer.entity_id if killer else 0
 	print("[server] %s defeated %s" % [_name_of(killer_id), _name_of(target.entity_id)])
@@ -253,24 +253,24 @@ func _on_killed(target: PlayerBody, killer: PlayerBody) -> void:
 	var beast := _beast_of(target)
 	if beast:
 		var data := Beasts.get_beast(beast.species)
-		_remnants.spawn(target.global_position, data.aspect, data.essence * essence_mult, owner, data.display_name)
+		_echoes.spawn(target.global_position, data.aspect, data.essence * essence_mult, owner, data.display_name)
 	elif _session_of(target):
-		_remnants.spawn(target.global_position, Advancement.ARTIST_REMNANT_ASPECT,
-			Advancement.ARTIST_REMNANT_ESSENCE * essence_mult, owner, _name_of(target.entity_id))
+		_echoes.spawn(target.global_position, Advancement.PRACTITIONER_ECHO_ASPECT,
+			Advancement.PRACTITIONER_ECHO_ESSENCE * essence_mult, owner, _name_of(target.entity_id))
 
 
-func _update_remnants() -> void:
+func _update_echoes() -> void:
 	var claimants := []
 	for session: ClientSession in _sessions.values():
 		claimants.append({"body": session.body, "interacting": session.interacting})
-	for claim in _remnants.update(claimants):
+	for claim in _echoes.update(claimants):
 		var session := _session_by_entity(claim[0])
-		var remnant: RemnantField.Remnant = claim[1]
-		session.progress.add_essence(remnant.aspect, remnant.essence)
+		var echo: EchoField.Echo = claim[1]
+		session.progress.add_essence(echo.aspect, echo.essence)
 		session.progress_dirty = true
 		_send_progress(session)
-		_notify(session, "Claimed the remnant of %s: +%d %s essence" % [
-			remnant.source_name, remnant.essence, Advancement.ASPECT_NAMES[remnant.aspect].to_lower()])
+		_notify(session, "Claimed the echo of %s: +%d %s essence" % [
+			echo.source_name, echo.essence, Advancement.ASPECT_NAMES[echo.aspect].to_lower()])
 
 
 ## Every fighter is encoded once per tick; each player then gets the entries (and
@@ -288,7 +288,7 @@ func _send_snapshots() -> void:
 	var effect_positions := PackedVector3Array()
 	var effect_stationary := PackedByteArray()
 	var effect_entries := []
-	for effect: Dictionary in _effects.snapshot_entries() + _remnants.snapshot_entries():
+	for effect: Dictionary in _effects.snapshot_entries() + _echoes.snapshot_entries():
 		effect_ids.append(effect.id)
 		effect_positions.append(effect.position)
 		effect_stationary.append(1 if effect.kind != Protocol.Effect.PROJECTILE else 0)
@@ -302,7 +302,7 @@ func _send_snapshots() -> void:
 		var nearby := []
 		for i in Interest.select_effects(viewer, effect_ids, effect_positions, effect_stationary, _tick):
 			nearby.append(effect_entries[i])
-		var claim := _remnants.progress_of(session.body.entity_id)
+		var claim := _echoes.progress_of(session.body.entity_id)
 		var bytes := Protocol.encode_snapshot(_tick, session.last_processed_tick, session.body, visible, nearby, claim)
 		_transport.send(session.peer_id, bytes, false)
 
@@ -340,7 +340,7 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 		return
 	if backend == null:
 		var display_name := String(hello.name).strip_edges().left(Protocol.MAX_NAME_LENGTH)
-		_admit(peer_id, display_name if not display_name.is_empty() else "Artist", -1, ProgressState.new())
+		_admit(peer_id, display_name if not display_name.is_empty() else "Practitioner", -1, ProgressState.new())
 		return
 	if _joining.has(peer_id):
 		return
@@ -372,7 +372,7 @@ func _on_hello(peer_id: int, hello: Dictionary) -> void:
 			_remove_session(old, false)
 			multiplayer.multiplayer_peer.disconnect_peer(old.peer_id)
 			print("[server] %s reconnected; dropped the old connection" % old.display_name)
-	_admit(peer_id, String(character.get("name", "Artist")), character_id, progress, String(redeemed.data.get("spawn", "default")))
+	_admit(peer_id, String(character.get("name", "Practitioner")), character_id, progress, String(redeemed.data.get("spawn", "default")))
 
 
 func _admit(peer_id: int, display_name: String, character_id: int, progress: ProgressState,
@@ -382,7 +382,7 @@ func _admit(peer_id: int, display_name: String, character_id: int, progress: Pro
 	session.display_name = display_name
 	session.character_id = character_id
 	session.progress = progress
-	session.body = _spawn_body(display_name, Protocol.EntityKind.ARTIST, -1)
+	session.body = _spawn_body(display_name, Protocol.EntityKind.PRACTITIONER, -1)
 	session.progress.apply_to(session.body)
 	session.arrived_at = spawn_name
 	session.body.respawn(Zones.spawn_point(zone_id, spawn_name), 0.0)
@@ -422,7 +422,7 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 		return
 	var progress := session.progress
 	match request.request:
-		Protocol.Request.CRAFT_BINDING:
+		Protocol.Request.CRAFT_SIGIL:
 			var error := progress.craft_error(request.argument)
 			if not error.is_empty():
 				_notify(session, error)
@@ -431,9 +431,9 @@ func _on_request(peer_id: int, request: Dictionary) -> void:
 			session.progress_dirty = true
 			progress.apply_to(session.body)
 			_send_progress(session)
-			_notify(session, "Crafted: %s" % Advancement.BINDINGS[request.argument].name)
+			_notify(session, "Crafted: %s" % Advancement.SIGILS[request.argument].name)
 		Protocol.Request.ADVANCE:
-			var error := progress.advance_error(session.body.action == PlayerBody.Action.CYCLE)
+			var error := progress.advance_error(session.body.action == PlayerBody.Action.MEDITATE)
 			if not error.is_empty():
 				_notify(session, error)
 				return
@@ -471,7 +471,7 @@ func _remove_session(session: ClientSession, left_world: bool) -> void:
 	var entity_id := session.body.entity_id
 	_info.erase(entity_id)
 	_effects.remove_owned_by(entity_id)
-	_remnants.remove_owner(entity_id)
+	_echoes.remove_owner(entity_id)
 	_entities.remove_child(session.body)
 	session.body.queue_free()
 	_broadcast(Protocol.encode_entity_left(entity_id), true)
@@ -622,7 +622,7 @@ func _spawn_beasts() -> void:
 		var beast := Beast.new()
 		beast.species = den.species
 		beast.body = _spawn_body(data.display_name, Protocol.EntityKind.BEAST, den.species)
-		beast.body.apply_stats(data.max_health, PlayerBody.MAX_MADRA, PlayerInput.TECHNIQUE_COUNT,
+		beast.body.apply_stats(data.max_health, PlayerBody.MAX_SPIRIT, PlayerInput.TECHNIQUE_COUNT,
 			data.damage_mult, data.knockback_taken_mult, data.speed_mult)
 		beast.body.team = BEAST_TEAM
 		_info[beast.body.entity_id].max_health = data.max_health
@@ -669,7 +669,7 @@ func _encode_info(entity_id: int) -> PackedByteArray:
 	return Protocol.encode_entity_info(entity_id, info.name, info.kind, info.species, info.rank, info.max_health)
 
 
-func _artist_bodies() -> Array:
+func _practitioner_bodies() -> Array:
 	return _sessions.values().map(func(s: ClientSession): return s.body)
 
 

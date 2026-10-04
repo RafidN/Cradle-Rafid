@@ -1,11 +1,11 @@
 class_name BeastBrain
 extends RefCounted
-## Drives a sacred beast by producing the same PlayerInput a player would send, so beasts
+## Drives a spirit beast by producing the same PlayerInput a player would send, so beasts
 ## fight with the shared combat and technique code.
 ##
 ## IDLE: wander near home. HUNT: chase the target and attack in bursts separated by
 ## pauses (the player's openings). RETURN: led too far from home, go back and heal.
-## A beast hunts the nearest sacred artist within its aggro range, or whoever hits it.
+## A beast hunts the nearest spirit practitioner within its aggro range, or whoever hits it.
 
 enum State { IDLE, HUNT, RETURN }
 
@@ -37,8 +37,8 @@ func _init(beast: BeastData, beast_body: PlayerBody, beast_home: Vector3, seed_v
 	_rng.seed = seed_value
 
 
-## artists: the bodies of sacred artists (players) a beast may hunt.
-func think(artists: Array) -> PlayerInput:
+## practitioners: the bodies of spirit practitioners (players) a beast may hunt.
+func think(practitioners: Array) -> PlayerInput:
 	_input_tick += 1
 	var input := PlayerInput.new()
 	input.tick = _input_tick
@@ -46,7 +46,7 @@ func think(artists: Array) -> PlayerInput:
 		_reset()
 		return input
 
-	var target := _find_target(artists)
+	var target := _find_target(practitioners)
 	if state == State.HUNT and (target == null or _from_home() > data.leash_range):
 		_start_return()
 	elif state == State.IDLE and target != null:
@@ -144,19 +144,19 @@ func _steer_toward(input: PlayerInput, point: Vector3, stick: float) -> void:
 	input.set_move(Vector2(0.0, -stick))
 
 
-func _find_target(artists: Array) -> PlayerBody:
-	for artist: PlayerBody in artists:
-		if artist.entity_id == target_id and not artist.is_dead():
-			return artist
+func _find_target(practitioners: Array) -> PlayerBody:
+	for practitioner: PlayerBody in practitioners:
+		if practitioner.entity_id == target_id and not practitioner.is_dead():
+			return practitioner
 	target_id = -1
 	if state == State.RETURN:
 		return null
 	var nearest: PlayerBody = null
 	var nearest_distance := data.aggro_range
-	for artist: PlayerBody in artists:
-		var distance := artist.global_position.distance_to(body.global_position)
-		if not artist.is_dead() and distance < nearest_distance:
-			nearest = artist
+	for practitioner: PlayerBody in practitioners:
+		var distance := practitioner.global_position.distance_to(body.global_position)
+		if not practitioner.is_dead() and distance < nearest_distance:
+			nearest = practitioner
 			nearest_distance = distance
 	if nearest:
 		target_id = nearest.entity_id

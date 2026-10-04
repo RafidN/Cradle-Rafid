@@ -1,16 +1,16 @@
 class_name ProgressionPanel
 extends PanelContainer
-## Rank, essence and bindings, with buttons to craft bindings and break through to the
+## Rank, essence and sigils, with buttons to craft sigils and break through to the
 ## next rank. Everything here is a request; the server checks it and answers with a
 ## PROGRESS update and a notice.
 
-signal craft_requested(binding: int)
+signal craft_requested(sigil: int)
 signal advance_requested
 
 var _rank_label := Label.new()
 var _next_label := Label.new()
 var _essence_label := Label.new()
-var _binding_rows: Array[Dictionary] = []  # {label, button}
+var _sigil_rows: Array[Dictionary] = []  # {label, button}
 var _advance_button := Button.new()
 var _advance_hint := Label.new()
 
@@ -37,11 +37,11 @@ func _ready() -> void:
 	column.add_child(_essence_label)
 	column.add_child(HSeparator.new())
 
-	var bindings_title := Label.new()
-	bindings_title.text = "Bindings"
-	bindings_title.add_theme_font_size_override("font_size", 18)
-	column.add_child(bindings_title)
-	for binding in Advancement.BINDINGS.size():
+	var sigils_title := Label.new()
+	sigils_title.text = "Sigils"
+	sigils_title.add_theme_font_size_override("font_size", 18)
+	column.add_child(sigils_title)
+	for sigil in Advancement.SIGILS.size():
 		var row := HBoxContainer.new()
 		var label := Label.new()
 		label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -49,10 +49,10 @@ func _ready() -> void:
 		row.add_child(label)
 		var button := Button.new()
 		button.text = "Craft"
-		button.pressed.connect(func(): craft_requested.emit(binding))
+		button.pressed.connect(func(): craft_requested.emit(sigil))
 		row.add_child(button)
 		column.add_child(row)
-		_binding_rows.append({"label": label, "button": button})
+		_sigil_rows.append({"label": label, "button": button})
 
 	column.add_child(HSeparator.new())
 	_advance_button.pressed.connect(func(): advance_requested.emit())
@@ -67,17 +67,17 @@ func _ready() -> void:
 	column.add_child(close_hint)
 
 
-func show_progress(progress: ProgressState, cycling: bool) -> void:
+func show_progress(progress: ProgressState, meditating: bool) -> void:
 	var rank: Dictionary = Advancement.RANKS[progress.rank]
-	_rank_label.text = "%s  —  %d HP, %d madra, %d techniques" % [
-		rank.name, progress.max_health(), progress.madra_capacity() / PlayerBody.MADRA_SCALE, rank.technique_slots]
+	_rank_label.text = "%s  —  %d HP, %d spirit, %d techniques" % [
+		rank.name, progress.max_health(), progress.spirit_capacity() / PlayerBody.SPIRIT_SCALE, rank.technique_slots]
 
 	var has_next := progress.rank + 1 < Advancement.RANKS.size()
 	if has_next:
 		var next: Dictionary = Advancement.RANKS[progress.rank + 1]
 		var needs := "%d essence (you have %d)" % [next.essence, progress.total_essence()]
-		if next.binding >= 0:
-			needs += " and a %s" % Advancement.BINDINGS[next.binding].name
+		if next.sigil >= 0:
+			needs += " and a %s" % Advancement.SIGILS[next.sigil].name
 		_next_label.text = "Next: %s needs %s." % [next.name, needs]
 	else:
 		_next_label.text = "You stand at the peak of what this world allows. For now."
@@ -87,20 +87,20 @@ func show_progress(progress: ProgressState, cycling: bool) -> void:
 		lines.append("%s essence: %d" % [Advancement.ASPECT_NAMES[aspect], progress.essence[aspect]])
 	_essence_label.text = "\n".join(lines)
 
-	for binding in _binding_rows.size():
-		var info: Dictionary = Advancement.BINDINGS[binding]
+	for sigil in _sigil_rows.size():
+		var info: Dictionary = Advancement.SIGILS[sigil]
 		var cost := PackedStringArray()
 		for aspect in info.cost.size():
 			if info.cost[aspect] > 0:
 				cost.append("%d %s" % [info.cost[aspect], Advancement.ASPECT_NAMES[aspect].to_lower()])
-		var row: Dictionary = _binding_rows[binding]
-		row.label.text = "%s (%d/%d)\n%s\nCost: %s" % [info.name, progress.bindings[binding], info.max,
+		var row: Dictionary = _sigil_rows[sigil]
+		row.label.text = "%s (%d/%d)\n%s\nCost: %s" % [info.name, progress.sigils[sigil], info.max,
 			info.description, ", ".join(cost)]
-		var error := progress.craft_error(binding)
+		var error := progress.craft_error(sigil)
 		row.button.disabled = not error.is_empty()
 		row.button.tooltip_text = error
 
-	var advance_error := progress.advance_error(cycling)
+	var advance_error := progress.advance_error(meditating)
 	_advance_button.visible = has_next
 	_advance_button.text = "Break through to %s" % Advancement.rank_name(progress.rank + 1) if has_next else ""
 	_advance_button.disabled = not advance_error.is_empty()

@@ -1,10 +1,10 @@
 class_name BeastData
 extends Resource
-## A species of sacred beast: stats, how its brain fights, and the remnant it leaves.
+## A species of spirit beast: stats, how its brain fights, and the echo it leaves.
 
 @export var display_name := ""
 @export var aspect := Advancement.Aspect.FIRE
-@export var rank_label := "Copper"
+@export var rank_label := "Bronze"
 @export var max_health := 60
 @export var damage_mult := 1.0
 @export var speed_mult := 1.0
@@ -12,7 +12,7 @@ extends Resource
 ## Visual only; hit tests use the standard hurtbox.
 @export var scale := 1.0
 @export var color := Color(0.8, 0.4, 0.3)
-## Essence of its aspect left in its remnant.
+## Essence of its aspect left in its echo.
 @export var essence := 10
 
 @export_group("Brain")

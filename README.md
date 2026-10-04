@@ -1,49 +1,49 @@
 # Cradle
 
-A 3D third-person **action MMO** inspired by Will Wight's *Cradle* series, built in **Godot 4.7**.
+A 3D third-person **action MMO** of spirit practice, built in **Godot 4.7**. *(Cradle is a working title.)*
 
-Cycle madra to deepen your core. Fight other sacred artists in real-time action combat. Claim the remnants they leave behind, and use them to advance through the ranks.
+Meditate to build spirit power and deepen your core. Fight other spirit practitioners in real-time action combat. Claim the echoes they leave behind, and use them to advance through the ranks.
 
-> **IP note:** *madra*, *sacred artist*, *remnant*, *Path* and the rank names come from the *Cradle* books. They are working names for a personal or fan project. Replace them with original terms before releasing anything publicly or commercially.
+> **Terms:** spirit power, meditation, echoes, spirit practitioners, Ways, Houses, sigils and the ranks (Iron → Bronze → Silver → Gold → Platinum → Diamond, then Master → Ascendant → Heavenly) are the game's own vocabulary. See [docs/ROADMAP.md](docs/ROADMAP.md).
 
 ---
 
 ## 1. Core loop
 
 ```
-Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
+Meditate (build spirit) → Fight (spirit practitioners, spirit beasts) → Claim echoes
        ↑                                                          ↓
-       └──────── Advance (rank up, new techniques, Path growth) ←──┘
+       └──────── Advance (rank up, new techniques, Way growth) ←──┘
 ```
 
-### Madra and cycling
-- Each character has a **core** with a **capacity**, and a **madra pool** that refills by cycling.
-- **Cycling** is a skill-based channel: press `cycle` to sit, then press it again each time the breath peaks.
+### Spirit and meditating
+- Each character has a **core** with a **capacity**, and a **spirit pool** that refills by meditating.
+- **Meditating** is a skill-based channel: press `meditate` to sit, then press it again each time the breath peaks.
   - Breathing on the beat builds flow, which multiplies regen. An off-beat breath breaks flow.
-  - Moving, acting or getting hit stops cycling.
-  - Cycling at aura-rich sites (contested areas in the world) gives a bonus. *(planned)*
-- **Paths** decide which aspect your madra has (for example fire, wind, blood or force), and with it your techniques and passives.
+  - Moving, acting or getting hit stops meditating.
+  - Meditating at aura-rich sites (contested areas in the world) gives a bonus. *(planned)*
+- **Ways** decide which aspect your spirit has (for example fire, wind, blood or force), and with it your techniques and passives.
 
 ### Combat (action-based, server-authoritative)
 - **Light and heavy attacks** use combo strings. Each attack has startup, active and recovery frames defined in data.
-- **Dodge** has invulnerability frames. **Block** reduces damage but stops your madra regen. A **perfect block** (parry) staggers the attacker.
+- **Dodge** has invulnerability frames. **Block** reduces damage but stops your spirit regen. A **perfect block** (parry) staggers the attacker.
 - **Lock-on** targets one enemy and lets you switch between enemies.
-- **Techniques** cost madra and come in four types:
+- **Techniques** cost spirit and come in four types:
   - **Enforcer:** buffs and enhanced strikes.
-  - **Striker:** projectiles.
-  - **Ruler:** area of effect and zone control.
-  - **Forger:** constructs such as shields and traps.
-- **Madra exhaustion:** emptying your pool leaves you briefly vulnerable. Managing that is the core tension in fights.
+  - **Lancer:** projectiles.
+  - **Controller:** area of effect and zone control.
+  - **Builder:** constructs such as shields and traps.
+- **Spirit exhaustion:** emptying your pool leaves you briefly vulnerable. Managing that is the core tension in fights.
 - **PvP** is allowed only in contested zones and arenas. Towns and starter zones are safe.
 
-### Remnants and advancement
-- Defeated beasts and sacred artists leave a **remnant** that can be claimed for a short time.
-- Claiming a remnant gives **essence** that matches its aspect. Essence is used to:
+### Echoes and advancement
+- Defeated beasts and spirit practitioners leave an **echo** that can be claimed for a short time.
+- Claiming an echo gives **essence** that matches its aspect. Essence is used to:
   - raise your core capacity
-  - craft **bindings**, which unlock or upgrade techniques
+  - craft **sigils**, which unlock or upgrade techniques
   - pay for **advancement trials**
-- **Rank ladder** (working names): Foundation → Copper → Iron → Jade → Lowgold → Highgold → True Gold → Underlord.
-  - Each rank changes your stats a lot. Iron gives an Iron body, which raises physical stats.
+- **Rank ladder:** Iron → Bronze → Silver → Gold → Platinum → Diamond, which fill with power. Above that are Master → Ascendant → Heavenly, which are locked behind achievements.
+  - Each rank changes your stats a lot. Silver gives a Tempered body, which raises physical stats.
   - Each rank unlocks new technique slots.
   - Fights between ranks are lopsided on purpose, as in the books. Matchmaking and zone level ranges keep this under control.
 
@@ -79,7 +79,7 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 | Remote entities | **Snapshot interpolation**, rendered about 100 ms in the past. |
 | Hit detection | **Lag compensation**: the server rewinds hurtboxes to the tick the attacker actually saw. Melee uses swept hitboxes over the active frames. |
 | Bandwidth | **Interest management**: each client only receives fighters, effects and events near it. Entities are quantized and encoded once per tick and shared by every client. Distant fighters and stationary effects update less often. *(Delta compression against acknowledged snapshots is future work.)* |
-| Cheating | Inputs are validated (rate, cooldowns, madra cost, distance). The client never sends anything that can change state on its own authority. |
+| Cheating | Inputs are validated (rate, cooldowns, spirit cost, distance). The client never sends anything that can change state on its own authority. |
 | Testing | A network condition simulator (latency, jitter, packet loss) and headless **bot clients** for load tests. |
 
 ---
@@ -109,58 +109,58 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 - **Move-cancel:** pressing a direction cancels the back half of any attack's or cast's recovery.
 - **Animation:** placeholder poses are computed every rendered frame and blended. Swings ease in and out, the fighter leans and bobs while running, and the weapon flashes while its hitbox is live.
 
-### Madra and techniques implementation (M2)
-- **Madra** ranges from 0 to 100. It's stored in hundredths so it stays an integer and the client predicts it exactly.
+### Spirit and techniques implementation (M2)
+- **Spirit** ranges from 0 to 100. It's stored in hundredths so it stays an integer and the client predicts it exactly.
   - It regenerates slowly (0.3/s) by default, and not at all while blocking, exhausted, or with an Enforcer active.
-- **Cycling:** press **C** to sit. A breath peaks every 1.5 s; press **C** within ±4 ticks of the peak (when the ring glows gold) to gain a flow stack, up to 5.
+- **Meditating:** press **C** to sit. A breath peaks every 1.5 s; press **C** within ±4 ticks of the peak (when the ring glows gold) to gain a flow stack, up to 5.
   - Regen is 1.2/s × (1 + flow), so up to 7.2/s at full flow.
   - An off-beat breath resets flow to 0. A skipped peak costs one stack.
-- **Exhaustion:** a technique can cost more madra than you have. It still goes off, but the pool empties and you're **exhausted** for 2 s:
+- **Exhaustion:** a technique can cost more spirit than you have. It still goes off, but the pool empties and you're **exhausted** for 2 s:
   - half speed
   - no dodge, block or cast
   - no regen
   - you take +25% damage
-- **Path of Kindled Flame** (working name). The four techniques are on keys **1–4**:
+- **Way of Kindled Flame** (working name). The four techniques are on keys **1–4**:
 
   | Technique | Type | Cost | Effect |
   |---|---|---|---|
-  | Flame Body | Enforcer | 10 | Toggle: +30% melee damage and +20% speed, but drains 1.5 madra/s. Running dry ends it and exhausts you. Turning it off is free. |
-  | Ember Lance | Striker | 15 | Projectile, 24 m/s, 22 m range, 12 damage. Can be blocked but not parried. |
-  | Searing Ring | Ruler | 25 | 4 m burst around you, 16 damage, strong knockback. Can't be blocked. |
-  | Cinder Trap | Forger | 20 | Placed in front of you. Arms after 0.5 s and lasts 15 s. Detonates under an enemy for 14 damage and a long hitstun. Max 2 per player. |
+  | Flame Body | Enforcer | 10 | Toggle: +30% melee damage and +20% speed, but drains 1.5 spirit/s. Running dry ends it and exhausts you. Turning it off is free. |
+  | Ember Lance | Lancer | 15 | Projectile, 24 m/s, 22 m range, 12 damage. Can be blocked but not parried. |
+  | Searing Ring | Controller | 25 | 4 m burst around you, 16 damage, strong knockback. Can't be blocked. |
+  | Cinder Trap | Builder | 20 | Placed in front of you. Arms after 0.5 s and lasts 15 s. Detonates under an enemy for 14 damage and a long hitstun. Max 2 per player. |
 
 - **Prediction and lag compensation:**
-  - Madra spending, cycling and Enforcer toggles are predicted on your client, and so are your own projectiles and burst visuals.
+  - Spirit spending, meditating and Enforcer toggles are predicted on your client, and so are your own projectiles and burst visuals.
   - Projectiles, bursts and traps exist on the server (`server/world/technique_effects.gd`).
   - A projectile tests targets rewound by its caster's view delay for its whole flight. Bursts rewind like melee. Traps check where enemies are now, because the victim is the one walking into them.
 
-### Remnants and advancement implementation (M3)
-- **Sacred beasts** live in dens around the arena. On the server they're ordinary fighters driven by a `BeastBrain` (`server/ai/beast_brain.gd`). The brain produces the same `PlayerInput` a player would, so beasts use the shared combat and technique code and its lag compensation unchanged.
-  - **Behavior:** a beast wanders near home and hunts the nearest artist inside its aggro range, or whoever hits it. It attacks in bursts with pauses between them (your openings), and returns home to heal if you drag it past its leash.
-  - **Teams:** beasts can't hurt each other. Artists are free-for-all.
+### Echoes and advancement implementation (M3)
+- **Spirit beasts** live in dens around the arena. On the server they're ordinary fighters driven by a `BeastBrain` (`server/ai/beast_brain.gd`). The brain produces the same `PlayerInput` a player would, so beasts use the shared combat and technique code and its lag compensation unchanged.
+  - **Behavior:** a beast wanders near home and hunts the nearest practitioner inside its aggro range, or whoever hits it. It attacks in bursts with pauses between them (your openings), and returns home to heal if you drag it past its leash.
+  - **Teams:** beasts can't hurt each other. Practitioners are free-for-all.
 
   | Beast | Aspect | Rank | HP | Style |
   |---|---|---|---|---|
-  | Ember Hound | Fire | Copper | 55 | Fast light combos, spits Ember Lance at range |
-  | Gale Fox | Wind | Copper | 45 | Very fast, dodges a lot |
-  | Stoneback Boar | Earth | Iron | 150 | Slow, heavy guard-breaking hits, fire stomp up close, barely flinches |
+  | Ember Hound | Fire | Bronze | 55 | Fast light combos, spits Ember Lance at range |
+  | Gale Fox | Wind | Bronze | 45 | Very fast, dodges a lot |
+  | Stoneback Boar | Earth | Silver | 150 | Slow, heavy guard-breaking hits, fire stomp up close, barely flinches |
 
-- **Remnants:** every fallen beast or artist leaves a glowing remnant of its aspect. To claim it, stand next to it and hold **E** for 2 s without acting.
-  - Whoever made the kill has it to themselves for 10 s; after that anyone can claim it. Unclaimed remnants fade after 90 s.
-  - Artists drop a small fire remnant, so killing players pays too.
-- **Essence and bindings:** each remnant gives essence of its aspect (Fire, Earth or Wind). Press **P** for the advancement panel.
-  - **Iron Body Binding:** costs 20 fire and 40 earth essence. It's required to reach Iron.
-  - **Kindled Core Binding:** costs 30 fire essence and gives +15 madra capacity. You can hold up to 2.
-- **Ranks:** you can only break through while **cycling**.
+- **Echoes:** every fallen beast or practitioner leaves a glowing echo of its aspect. To claim it, stand next to it and hold **E** for 2 s without acting.
+  - Whoever made the kill has it to themselves for 10 s; after that anyone can claim it. Unclaimed echoes fade after 90 s.
+  - Practitioners drop a small fire echo, so killing players pays too.
+- **Essence and sigils:** each echo gives essence of its aspect (Fire, Earth or Wind). Press **P** for the advancement panel.
+  - **Tempered Body Sigil:** costs 20 fire and 40 earth essence. It's required to reach Silver.
+  - **Kindled Core Sigil:** costs 30 fire essence and gives +15 spirit capacity. You can hold up to 2.
+- **Ranks:** you can only break through while **meditating**.
 
-  | Rank | Requires | HP | Madra | Techniques | Other |
+  | Rank | Requires | HP | Spirit | Techniques | Other |
   |---|---|---|---|---|---|
-  | Foundation | — | 100 | 100 | Flame Body, Ember Lance | |
-  | Copper | 60 essence (any) | 115 | 140 | + Searing Ring | +5% damage |
-  | Iron | 100 essence + Iron Body Binding | 160 | 160 | + Cinder Trap | +15% damage, −30% knockback taken |
+  | Iron | — | 100 | 100 | Flame Body, Ember Lance | |
+  | Bronze | 60 essence (any) | 115 | 140 | + Searing Ring | +5% damage |
+  | Silver | 100 essence + Tempered Body Sigil | 160 | 160 | + Cinder Trap | +15% damage, −30% knockback taken |
 
 - **Authority:** the server owns progression. The client sends requests (craft, advance), and the server checks them and answers with a progress update and a notice. Progression is lost on disconnect until accounts and persistence arrive in M4.
-- **Fast testing:** start the server with `--essence-mult=6` to see the whole Foundation → Iron loop in a couple of minutes. Bots hunt beasts, claim remnants, craft and advance on their own.
+- **Fast testing:** start the server with `--essence-mult=6` to see the whole Iron → Silver loop in a couple of minutes. Bots hunt beasts, claim echoes, craft and advance on their own.
 
 ### Persistence implementation (M4)
 - **Joining works through one-time tickets:**
@@ -186,12 +186,12 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
   Characters remember their zone, and logging in returns you there.
 - **Interest management** (`server/world/interest.gd`):
   - Fighters come into view within 55 m and leave beyond 65 m, so things at the edge don't flicker in and out.
-  - Fighters beyond 25 m are sent every 3rd tick. Stationary effects (remnants, traps) are sent every 6th tick; projectiles every tick.
+  - Fighters beyond 25 m are sent every 3rd tick. Stationary effects (echoes, traps) are sent every 6th tick; projectiles every tick.
   - Hits and bursts only go to players nearby.
 - **Encoding:**
   - Each fighter is a 15-byte entry and each effect a 21-byte entry, using 16-bit fixed-point positions at 1/64 m.
   - Every entry is encoded once per tick and shared by every client.
-  - Each zone holds at most 120 remnants.
+  - Each zone holds at most 120 echoes.
 - **Load test:** `tools/load_test.gd` runs many lightweight bots from one process; start the server with `--stats`. Results with 100 bots on a laptop (Apple M1 Pro, GDScript server):
 
   | Scenario | Avg tick (budget 33 ms) | Max tick | Out per player |
@@ -204,9 +204,9 @@ Cycle (build madra) → Fight (sacred artists, sacred beasts) → Claim remnants
 ## 3. Project layout
 
 ```
-shared/   net/  (packet formats, serialization)  sim/  (movement, combat rules)  data/  (techniques, Paths, ranks)
+shared/   net/  (packet formats, serialization)  sim/  (movement, combat rules)  data/  (techniques, Ways, ranks)
 client/   net/  (connection, prediction, interpolation)  player/  ui/  fx/
-server/   net/  (sessions, snapshots, interest)  world/  (zones, spawns, remnants)  ai/
+server/   net/  (sessions, snapshots, interest)  world/  (zones, spawns, echoes)  ai/
 assets/   models/ textures/ materials/ audio/ fonts/
 backend/  account and persistence service (not Godot)
 docs/     design notes
@@ -231,8 +231,8 @@ docs/     design notes
 | Block | Q | RB |
 | Lock-on (toggle) | Tab / MMB | R3 |
 | Techniques 1–4 | 1–4 | D-pad |
-| Cycle / breathe | C | LB |
-| Claim remnant (hold) / Advancement panel | E / P | Y / — |
+| Meditate / breathe | C | LB |
+| Claim echo (hold) / Advancement panel | E / P | Y / — |
 | Pause / release mouse | Esc | Start |
 
 ---
@@ -252,13 +252,13 @@ Each milestone ends with something you can play and test over a simulated bad ne
 2. ✅ **M1: Combat core**
    - Attacks defined in data, hitboxes and hurtboxes, lag-compensated hits.
    - Health, dodge invulnerability, block and parry, death and respawn, lock-on.
-3. ✅ **M2: Madra and cycling**
-   - Madra pool, the cycling minigame, and exhaustion.
-   - The first Path with one technique of each type: Enforcer, Striker, Ruler, Forger.
-4. ✅ **M3: Remnants and advancement**
-   - AI sacred beasts that run on the server.
-   - Remnant drops and claiming, essence and bindings.
-   - Advancement from Foundation to Copper to Iron.
+3. ✅ **M2: Spirit and meditating**
+   - Spirit pool, the meditating minigame, and exhaustion.
+   - The first Way with one technique of each type: Enforcer, Lancer, Controller, Builder.
+4. ✅ **M3: Echoes and advancement**
+   - AI spirit beasts that run on the server.
+   - Echo drops and claiming, essence and sigils.
+   - Advancement from Iron to Bronze to Silver.
 5. ✅ **M4: Persistence**
    - The backend service: accounts, characters and inventory.
    - Token handoff to zone servers and autosave.
@@ -267,7 +267,7 @@ Each milestone ends with something you can play and test over a simulated bad ne
    - Moving players between zones.
    - Interest management at full scale, and load tests with 100 bots.
 7. **M6: Content and polish**
-   - More Paths, zones, PvP arenas, UI, VFX and audio.
+   - More Ways, zones, PvP arenas, UI, VFX and audio.
 
 ## Running
 
@@ -304,7 +304,7 @@ Register an account, create a character, and enter the world. Walk through the g
 | `--bot` | A client that moves on its own and prints stats every 5 s. Works headless, so it's useful for load tests. |
 
 | `--log-hits` (server) | Print every hit: who hit whom, the outcome, and its source |
-| `--essence-mult=N` (server) | Multiply essence from remnants, to test progression quickly |
+| `--essence-mult=N` (server) | Multiply essence from echoes, to test progression quickly |
 | `--screenshot=out.png [--screenshot-after=5]` | Save one frame after N seconds and quit, so visuals can be checked without watching the window |
 
 **Local test** (a headless server plus 2 windowed clients at +150 ms RTT, 5% loss, 20 ms jitter):
@@ -319,7 +319,7 @@ tools/run_local.sh 2 150 5 20
 cd backend && npm test
 ```
 
-**Game tests** (combat, madra and cycling, techniques, progression, remnants, beast AI, input and progress encoding, rewind + replay matching straight simulation, and a check that every script compiles):
+**Game tests** (combat, spirit and meditating, techniques, progression, echoes, beast AI, input and progress encoding, rewind + replay matching straight simulation, and a check that every script compiles):
 
 ```bash
 /Users/rafidn/Downloads/Godot.app/Contents/MacOS/Godot --headless --path . --script res://tests/test_combat.gd

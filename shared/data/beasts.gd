@@ -1,6 +1,6 @@
 class_name Beasts
 extends RefCounted
-## Registry of sacred beast species; a species id is its index in ALL.
+## Registry of spirit beast species; a species id is its index in ALL.
 
 enum { EMBER_HOUND, STONEBACK_BOAR, GALE_FOX }
 
