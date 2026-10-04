@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+env:
+  GODOT_VERSION: "4.7.2"
+
+jobs:
+  backend:
+    name: Backend tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  game:
+    name: Game tests and bot smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip -d "$HOME/bin" && mv "$HOME/bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/bin/godot"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Tests
+        run: godot --headless --path . --script res://tests/test_combat.gd
+      - name: Bot smoke test
+        run: tools/ci_smoke.sh godot
+
+  export:
+    name: Export builds and server image
+    needs: game
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Godot
+        run: |
+          mkdir -p "$HOME/bin"
+          curl -sSL -o godot.zip "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -q godot.zip -d "$HOME/bin" && mv "$HOME/bin/Godot_v${GODOT_VERSION}-stable_linux.x86_64" "$HOME/bin/godot"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+      - name: Cache export templates
+        id: templates
+        uses: actions/cache@v4
+        with:
+          path: ~/.local/share/godot/export_templates
+          key: godot-templates-${{ env.GODOT_VERSION }}
+      - name: Install export templates
+        if: steps.templates.outputs.cache-hit != 'true'
+        run: |
+          curl -sSL -o templates.tpz "https://github.com/godotengine/godot-builds/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q templates.tpz -d /tmp/templates
+          mv /tmp/templates/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+      - name: Import project
+        run: godot --headless --path . --import
+      - name: Export Windows client
+        run: mkdir -p build/windows && godot --headless --path . --export-release "Windows Desktop" build/windows/Cradle.exe
+      - name: Export Linux server
+        run: mkdir -p build/server && godot --headless --path . --export-release "Linux Server" build/server/cradle_server.x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-client
+          path: build/windows
+          retention-days: 14
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-server
+          path: build/server
+          retention-days: 14
+      - name: Build server image
+        run: docker build -f deploy/server.Dockerfile -t cradle-server .
+      - name: Build backend image
+        run: docker build -t cradle-backend backend
+      # Images are published only for version tags (git tag v0.1.0 && git push --tags).
+      - name: Publish images
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          owner="$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')"
+          for image in cradle-server cradle-backend; do
+            docker tag "$image" "ghcr.io/$owner/$image:${GITHUB_REF_NAME}"
+            docker tag "$image" "ghcr.io/$owner/$image:latest"
+            docker push "ghcr.io/$owner/$image:${GITHUB_REF_NAME}"
+            docker push "ghcr.io/$owner/$image:latest"
+          done

@@ -151,23 +151,14 @@ Estimates are **calendar time at roughly 10–15 hours a week**, and they're rou
 
 ### Phase 0: Foundations for the long haul (≈4–6 weeks)
 - ✅ **Rebrand** to the game's own vocabulary, with a guard test.
-- **Content as data:** techniques, beasts, zones, ranks and sigils move into authored resource files, with validation tests for every reference.
-- **Character data model** in the backend: appearance, discipline, Way, House, power, talents, inventory and quest log, with versioned save migrations.
-- **Builds:**
-  - A **Windows client export** and a **Linux dedicated-server export**.
-  - A container for the zone server.
-- **First deployment:** the backend and zone servers on one cloud VM, with nightly database backups. The game exists on the internet for the first time.
-- **Graceful shutdown:** a server that's stopping saves every player first. That closes today's known gap.
-- **CI on every push:**
-  - the game tests and backend tests
-  - a short bot smoke test
-  - a Windows build
-- **Localization-ready text:** UI strings go through Godot's translation system from now on.
-- **Asset conventions:**
-  - glTF models with metric scale.
-  - **One standard humanoid skeleton**, so animations can be retargeted onto any character.
-  - Low-poly budgets.
-  - An **art direction sheet:** palette, proportions and a reference board, so generated assets look like one game.
+- ✅ **Content as data:** attacks, techniques, beasts, zones, ranks, sigils and Ways are resource files found by folder, with stable ids and network ids. A test checks every reference.
+- ✅ **Character data model:** discipline (chosen at creation), appearance and Way on characters, and versioned save migrations (v1 → v2). Power, talents, inventory and quests extend the versioned save as their phases land.
+- ✅ **Builds:** export presets for a **Windows client** and a **Linux dedicated server**, a server container image, and a production Docker Compose stack (Postgres, backend, a server per zone, nightly backups, optional HTTPS). See [DEPLOY.md](DEPLOY.md).
+- ⏳ **First deployment:** everything is ready. It needs a VPS and a domain (you), then the steps in DEPLOY.md.
+- ✅ **Graceful shutdown:** game servers save every player before stopping, through a localhost admin port and an entrypoint that turns SIGTERM into a shutdown.
+- ✅ **CI on every push:** backend and game tests, a bot smoke test, Windows and Linux exports, and image builds. Images are published only for version tags.
+- ✅ **Localization-ready text:** server notices are message keys with arguments, and UI text goes through `tr()`. `tools/extract_strings.py` builds the translation template.
+- ✅ **Asset conventions and art direction:** [ART_PIPELINE.md](ART_PIPELINE.md) covers style, palette, proportions, budgets, the shared humanoid skeleton, required animations, and the workflow for a generation tool.
 
 ### Phase 1: Characters and animation (≈7–9 weeks)
 - **Character select and creation:** body type, face preset, hair, colors, discipline (+3 talent points in its branch) and name, with name rules (filter and reserved names).

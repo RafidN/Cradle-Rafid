@@ -2,7 +2,6 @@
 .godot/
 /android/
 *.translation
-export_presets.cfg
 export_credentials.cfg
 .import/
 
@@ -13,3 +12,9 @@ export_credentials.cfg
 backend/node_modules/
 backend/dist/
 backend/data/
+
+# Exported builds
+build/
+
+# Deployment secrets
+deploy/.env

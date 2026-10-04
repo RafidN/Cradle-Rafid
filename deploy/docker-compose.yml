@@ -1,0 +1,65 @@
+# Production stack on one machine: Postgres, the backend, one game server per zone,
+# nightly database backups, and (with --profile https) Caddy for automatic HTTPS.
+# See docs/DEPLOY.md. Settings come from deploy/.env (copy .env.example).
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cradle
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: cradle
+    volumes: [postgres-data:/var/lib/postgresql/data]
+
+  backend:
+    image: ${IMAGE_PREFIX:-ghcr.io/rafidn}/cradle-backend:${VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://cradle:${POSTGRES_PASSWORD}@postgres:5432/cradle
+      SERVER_SECRET: ${SERVER_SECRET:?set SERVER_SECRET in .env}
+    ports: ["8080:8080"]
+    depends_on: [postgres]
+
+  # One container per zone. Each registers with the backend and advertises PUBLIC_HOST.
+  zone-proving-grounds:
+    image: ${IMAGE_PREFIX:-ghcr.io/rafidn}/cradle-server:${VERSION:-latest}
+    restart: unless-stopped
+    command: ["--server", "--port=7777", "--zone=proving_grounds", "--world=${WORLD:-alpha}",
+      "--backend=http://backend:8080", "--server-secret=${SERVER_SECRET}", "--public-host=${PUBLIC_HOST:?set PUBLIC_HOST in .env}"]
+    ports: ["7777:7777/udp"]
+    stop_grace_period: 30s
+    depends_on: [backend]
+
+  zone-ember-wilds:
+    image: ${IMAGE_PREFIX:-ghcr.io/rafidn}/cradle-server:${VERSION:-latest}
+    restart: unless-stopped
+    command: ["--server", "--port=7778", "--zone=ember_wilds", "--world=${WORLD:-alpha}",
+      "--backend=http://backend:8080", "--server-secret=${SERVER_SECRET}", "--public-host=${PUBLIC_HOST}"]
+    ports: ["7778:7778/udp"]
+    stop_grace_period: 30s
+    depends_on: [backend]
+
+  # A dump of the database every night, keeping the last 14.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes: [./backups:/backups]
+    entrypoint: ["bash", "-c", "while true; do pg_dump -h postgres -U cradle -Fc cradle > /backups/cradle-$$(date +%F).dump && ls -1t /backups/*.dump | tail -n +15 | xargs -r rm; sleep 86400; done"]
+    depends_on: [postgres]
+
+  # HTTPS for the backend at https://${DOMAIN} (needs a domain pointing at this machine).
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    profiles: [https]
+    command: ["caddy", "reverse-proxy", "--from", "${DOMAIN:-localhost}", "--to", "backend:8080"]
+    ports: ["80:80", "443:443"]
+    volumes: [caddy-data:/data]
+    depends_on: [backend]
+
+volumes:
+  postgres-data:
+  caddy-data:

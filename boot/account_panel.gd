@@ -9,7 +9,8 @@ signal play(host: String, port: int, ticket: String, character_name: String)
 ## Emitted when auto_play() can't get into the world.
 signal failed(message: String)
 
-const DEFAULT_BACKEND := "http://127.0.0.1:8080"
+## Set game/backend_url in Project Settings before exporting a build for players.
+const BACKEND_URL_SETTING := "game/backend_url"
 
 var _backend := BackendClient.new()
 var _username := ""
@@ -45,7 +46,7 @@ func _ready() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	column.add_child(title)
 
-	_url_edit.text = DEFAULT_BACKEND
+	_url_edit.text = ProjectSettings.get_setting(BACKEND_URL_SETTING, "http://127.0.0.1:8080")
 	_url_edit.placeholder_text = tr("Backend URL")
 	column.add_child(_url_edit)
 
