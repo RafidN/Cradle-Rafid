@@ -1,6 +1,7 @@
 extends Node
 ## Entry point. Starts a dedicated server, a client, or shows the connect menu,
-## depending on the build and the command-line arguments after "--":
+## depending on the build and these command-line arguments (with or without a "--"
+## separator before them, so they also work in the editor's Customize Run Instances):
 ##   --server [--port=7777] [--log-hits]
 ##   --connect=host[:port] [--name=X] [--latency=ms] [--jitter=ms] [--loss=percent] [--bot]
 ##   --screenshot=path.png [--screenshot-after=seconds]  (save one frame, then quit)
@@ -28,7 +29,7 @@ func _ready() -> void:
 	if _headless:
 		Engine.max_fps = HEADLESS_MAX_FPS
 
-	var args := _parse_args(OS.get_cmdline_user_args())
+	var args := _parse_args(OS.get_cmdline_args() + OS.get_cmdline_user_args())
 	if args.has("screenshot"):
 		_screenshot_and_quit(String(args.screenshot), String(args.get("screenshot-after", "5")).to_float())
 	if args.has("connect"):
